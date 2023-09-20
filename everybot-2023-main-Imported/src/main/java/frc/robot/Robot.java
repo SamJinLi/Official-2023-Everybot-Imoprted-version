@@ -17,8 +17,6 @@
 
 package frc.robot;
 
-import java.util.Scanner; //Just for adjusting PID value
-
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.InvertType;
 import com.ctre.phoenix.motorcontrol.NeutralMode;
@@ -330,94 +328,6 @@ public class Robot extends TimedRobot {
     @Override
     public void robotPeriodic() {
         SmartDashboard.putNumber("Time (seconds)", Timer.getFPGATimestamp());
-        Scanner pidInputScanner = new Scanner(System.in);
-        // PID input format:
-        // p:1.0
-        // i:50
-        // D:123.456
-        String temp = pidInputScanner.nextLine();
-        String firstChar = temp.substring(0, 1);
-        System.out.println("Temp: " + temp);
-        if (firstChar.equals("p") || firstChar.equals("P")) {
-            int SemiVal = temp.indexOf(":");
-            try {
-                P = Double.parseDouble(temp.substring(SemiVal+1));
-                System.out.println("P parsed success");
-                }
-                catch (NumberFormatException e) {
-                P = 0;
-                System.out.print(e);
-                System.out.println("number is not a integer");
-                }
-                System.out.println("P = " + P);
-        }
-
-        if (firstChar.equals("i") || firstChar.equals("I")) {
-            int SemiVal = temp.indexOf(":");
-            try {
-                I = Double.parseDouble(temp.substring(SemiVal+1));
-                System.out.println("I parsed success");
-                }
-                catch (NumberFormatException e) {
-                I = 0;
-                System.out.print(e);
-                System.out.println("number is not a integer");
-                }
-                System.out.println("I = " + I);
-        }
-
-        if (firstChar.equals("D") || firstChar.equals("d")) {
-            int SemiVal = temp.indexOf(":");
-            try {
-                D = Double.parseDouble(temp.substring(SemiVal+1));
-                System.out.println("D parsed success");
-                }
-                catch (NumberFormatException e) {
-                D = 0;
-                System.out.print(e);
-                System.out.println("number is not a integer");
-                }
-                System.out.println("D = " + D);
-        }
-
-        /* 
-        WARNING: NOT FINISHED 
-        if (firstChar.equals("F") || firstChar.equals("f") || firstChar.equals("FF")||firstChar.equals("ff")) {
-            int SemiVal = temp.indexOf(":");
-            try {
-                FF = Double.parseDouble(temp.substring(SemiVal+1));
-                System.out.println("FF parsed success");
-                }
-                catch (NumberFormatException e) {
-                FF = 0;
-                System.out.print(e);
-                System.out.println("number is not a integer");
-                }
-                System.out.println("FF = " + FF);
-        }
-        NOT FULLY FINISHED AFTER THIS LINE
-        if (firstChar.equals("iz") || firstChar.equals("IZ")) {
-            int SemiVal = temp.indexOf(":");
-            try {
-                IZone = Double.parseDouble(temp.substring(SemiVal+1));
-                System.out.println("IZ parsed success");
-                }
-                catch (NumberFormatException e) {
-                D = 0;
-                System.out.print(e);
-                System.out.println("number is not a integer");
-                }
-                System.out.println("D = " + D);
-        }
-        */
-
-        if (temp.equals("stop scanner")){
-            pidInputScanner.close();
-        }
-        else{
-            temp = pidInputScanner.nextLine();
-            System.out.println("Temp is renewed, value = " + temp);
-        }
     }
 
     double autonomousStartTime;
