@@ -1,23 +1,23 @@
 // TODO: 
 /* 
- * one track doens't work
- * 
+//  * 
  * Retracting the arm have issue -- voltage too low
+ *  PID LOOP!!!
  * 
  * binding new keys
  * 
- * intake not working
+ * LEARN:
+ * Suffle board API 
+ *  EVERYTHING AUTONOMOUS
  * 
- * 
- * 
- * SEAN QUESTOIN:
- * AUTONOMOUS
 */
 // Copyright (c) FIRST and other WPILib contributors.
 // Open Source Software; you can modify and/or share it under the terms of
 // the WPILib BSD license file in the root directory of this project.
 
 package frc.robot;
+
+import java.util.Scanner; //Just for adjusting PID value
 
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.InvertType;
@@ -31,13 +31,17 @@ import com.revrobotics.SparkMaxPIDController;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 import com.revrobotics.SparkMaxRelativeEncoder.Type;
-
-
+import edu.wpi.first.networktables.GenericEntry;
+import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.shuffleboard.BuiltInWidgets;
+import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
+import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.shuffleboard.BuiltInWidgets;
 
 public class Robot extends TimedRobot {
     /*
@@ -49,10 +53,40 @@ public class Robot extends TimedRobot {
     private String m_autoSelected;
     private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
-
-    // arm PID encoder
+    // arm PID variables declaratoin
+    // TODO: Don't forget to
+    /*
+     * s
+     * e
+     * t
+     * 
+     * s
+     * t
+     * a
+     * t
+     * i
+     * c
+     * value for P,I,D after done!!
+     * (Change them to static final at the same time)
+     */
+    double P = 0,I = 0 ,D = 0;
     SparkMaxPIDController armPidController;
     RelativeEncoder armEncoder;
+    // for adujusting PID
+    private NetworkTableEntry pidPEntry;
+    private NetworkTableEntry pidIEntry;
+    private NetworkTableEntry pidDEntry;
+    private NetworkTableEntry pidFFEntry; // Forward Feed
+    private NetworkTableEntry pidIZoneEntry; // IZone
+
+    // private final GenericEntry armAngle, armOutput; // for shuffle board
+    // TODO: change all these limits and stuff! (These were straight from sean's
+    // code, and Sam haven't tested them yet. DELETE THAT AFTER WHOEVER TESTED IT
+    // AND FOUND THE BEST ANGLE)
+    // in degrees? not sure
+    public static final double k_SOFT_LIMIT = 50;
+
+    // Drivetrain variables declaration
     /*
      * Drive motor controller instances.
      * 
@@ -128,22 +162,22 @@ public class Robot extends TimedRobot {
     static final double INTAKE_HOLD_POWER = 0;
 
     /**
-     * Time to extend or retract arm in auto
+     * TODO:Time to extend or retract arm in auto
      */
     static final double ARM_EXTEND_TIME_S = 2.0;
 
     /**
-     * Time to throw game piece in auto
+     * TODO:Time to throw game piece in auto
      */
     static final double AUTO_THROW_TIME_S = 0.375;
 
     /**
-     * Time to drive back in auto
+     * TODO: Time to drive back in auto
      */
     static final double AUTO_DRIVE_TIME = 6.0;
 
     /**
-     * Speed to drive backwards in auto
+     * TODO:Speed to drive backwards in auto
      */
     static final double AUTO_DRIVE_SPEED = -0.25;
 
@@ -157,13 +191,8 @@ public class Robot extends TimedRobot {
         m_chooser.addOption("cube and mobility", kCubeAuto);
         SmartDashboard.putData("Auto choices", m_chooser);
 
-        /*
-         * You will need to change some of these from false to true.
-         * 
-         * In the setDriveMotors method, comment out all but 1 of the 4 calls
-         * to the set() methods. Push the joystick forward. Reverse the motor
-         * if it is going the wrong way. Repeat for the other 3 motors.
-         */
+        // Motor setup code Start
+        // Drive train setup code start
         TalonSRXConfiguration config = new TalonSRXConfiguration();
         config.peakCurrentLimit = 40; // the peak current, in amps
         config.peakCurrentDuration = 1500; // the time at the peak current before the limit triggers, in ms
@@ -178,16 +207,13 @@ public class Robot extends TimedRobot {
         motorLeftfollwer.follow(motorLeftprimary);
         motorRightfollower.follow(motorRightprimary);
 
-        // motorLeftprimary.setInverted(InvertType.InvertMotorOutput);
-        // motorLeftfollwer.setInverted(InvertType.FollowMaster);
-        // motorRightprimary.setInverted(InvertType.None);
-        // motorRightfollower.setInverted(InvertType.FollowMaster);
-
         motorRightprimary.setInverted(InvertType.InvertMotorOutput);
         motorRightfollower.setInverted(InvertType.InvertMotorOutput);
         motorLeftprimary.setInverted(InvertType.None);
         motorLeftfollwer.setInverted(InvertType.FollowMaster);
+        // Drivetrain setup code end
 
+        // Arm (motor, encoder, and PID loop) setup Start
         /*
          * Set the arm and intake to brake mode to help hold position.
          * If either one is reversed, change that here too. Arm out is defined
@@ -198,81 +224,92 @@ public class Robot extends TimedRobot {
         arm.setSmartCurrentLimit(ARM_CURRENT_LIMIT_A);
 
         this.armPidController = arm.getPIDController();
-        this.armPidController.setP(.005);
-        this.armPidController.setI(0);
-        this.armPidController.setD(0);
-        this.armPidController.setFF(0);
-        this.armPidController.setIZone(0);
+        ShuffleboardTab tab = Shuffleboard.getTab("PID");
+        tab.addPersistent("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
+        tab.addPersistent("I", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
+        tab.addPersistent("D", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
+        tab.addPersistent("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // Forward Feed
+        tab.addPersistent("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // IZone
+        // Bing ai changes my life? :)
+        // this.armPidController.setP(P);
+        // this.armPidController.setI(I);
+        // this.armPidController.setD(D);
+        // this.armPidController.setFF(0);
+        // this.armPidController.setIZone(0);
 
         this.armEncoder = this.arm.getEncoder(Type.kHallSensor, 42);
+        // ALWAYS BURN FLASH this saves changes like idle mode or set inverted to the
+        // spark max
+        arm.burnFlash();
+        // For shuffleboard
+        // Uncomment these after learned shuffleboard API
+        // this.armAngle = Shuffleboard.getTab("ATW").add("Arm Angle", 0).getEntry();
+        // this.armOutput = Shuffleboard.getTab("ATW").add("Arm Motor Output",
+        // 0).getEntry();
+        // Arm setup end
+
         intake.setInverted(false);
         intake.setIdleMode(IdleMode.kBrake);
+        // Motor setup end
     }
 
-    /**
-     * Calculate and set the power to apply to the left and right
-     * drive motors.
-     * 
-     * @param forward Desired forward speed. Positive is forward.
-     * @param turn    Desired turning speed. Positive is counter clockwise from
-     *                above.
+    /*
+     * Tank drive
      */
-
-    //TODO: change this to tank drive? Otherwise UNDERSTAND HOW IT WORKS
     public void setDriveMotors(double left, double right) {
-        // SmartDashboard.putNumber("drive forward power (%)", forward);
-        // SmartDashboard.putNumber("drive turn power (%)", turn);
+        SmartDashboard.putNumber("left track power (%)", left);
+        SmartDashboard.putNumber("right track power (%)", right);
 
-        /*
-         * positive turn = counter clockwise, so the left side goes backwards
-         */
-        // double left = forward - turn;
-        // double right = forward + turn;
-
-        // SmartDashboard.putNumber("drive left power (%)", left);
-        // SmartDashboard.putNumber("drive right power (%)", right);
-
-        // // see note above in robotInit about commenting these out one by one to set
-        // // directions.
-        // // motorLeftprimary.set(left);
-        
-        if (Math.abs(right) > 0.20){
+        // NOTE: change the dead zone?
+        if (Math.abs(right) > 0.20) {
             motorRightprimary.set(ControlMode.PercentOutput, right);
             motorRightfollower.set(ControlMode.PercentOutput, right);
-        }
-        else
-        {
+        } else {
             motorRightprimary.set(ControlMode.PercentOutput, 0);
             motorRightfollower.set(ControlMode.PercentOutput, 0);
         }
-        if (Math.abs(left) > 0.20)
-        {
+        if (Math.abs(left) > 0.20) {
             motorLeftprimary.set(ControlMode.PercentOutput, left);
             motorLeftfollwer.set(ControlMode.PercentOutput, left);
-        }
-        else{
+        } else {
             motorLeftprimary.set(ControlMode.PercentOutput, 0);
             motorLeftfollwer.set(ControlMode.PercentOutput, 0);
         }
-        
-        // motorRightprimary.set(right);
-        
     }
 
     /**
      * Set the arm output power. Positive is out, negative is in.
      * 
-     * @param percent
+     * @param input
      */
-    public void setArmMotor(double percent) {
-        arm.set(percent);
-        SmartDashboard.putNumber("arm power (%)", percent);
+    public void setArmMotor(double input) {
+        // Sean's code start
+
+        // stop it from going too far
+
+        // reduce input because adding the holding value could make it over 1
+        input *= .9;
+        // get holding output flips itself so we just add this
+        // input += getArmHoldingOutput();
+        if (Math.abs(getArmPositionDegrees()) >= k_SOFT_LIMIT && !((getArmPositionDegrees() < 0) ^ (input < 0))) {
+            input = 0;
+        }
+        // we only set the leader cuz the follower will just do the same
+        arm.set(input);
+        // updating the shuffle board output
+        // armOutput.setDouble(input);
+
+        // Sean's code end
+        // arm.set(percent);
+        // SmartDashboard.putNumber("arm power (%)", percent); //TODO: change the
+        // percent to whatever!
+        SmartDashboard.putNumber("arm output", input);
         SmartDashboard.putNumber("arm motor current (amps)", arm.getOutputCurrent());
         SmartDashboard.putNumber("arm motor temperature (C)", arm.getMotorTemperature());
     }
 
     /**
-     * Set the arm output power.
+     * Set the intake output power.
      * 
      * @param percent desired speed
      * @param amps    current limit
@@ -292,14 +329,104 @@ public class Robot extends TimedRobot {
     @Override
     public void robotPeriodic() {
         SmartDashboard.putNumber("Time (seconds)", Timer.getFPGATimestamp());
+        Scanner pidInputScanner = new Scanner(System.in);
+        // PID input format:
+        // p:1.0
+        // i:50
+        // D:123.456
+        String temp = pidInputScanner.nextLine();
+        String firstChar = temp.substring(0, 1);
+        System.out.println("Temp: " + temp);
+        if (firstChar.equals("p") || firstChar.equals("P")) {
+            int SemiVal = temp.indexOf(":");
+            try {
+                P = Double.parseDouble(temp.substring(SemiVal+1));
+                System.out.println("P parsed success");
+                }
+                catch (NumberFormatException e) {
+                P = 0;
+                System.out.print(e);
+                System.out.println("number is not a integer");
+                }
+                System.out.println("P = " + P);
+        }
+
+        if (firstChar.equals("i") || firstChar.equals("I")) {
+            int SemiVal = temp.indexOf(":");
+            try {
+                I = Double.parseDouble(temp.substring(SemiVal+1));
+                System.out.println("I parsed success");
+                }
+                catch (NumberFormatException e) {
+                I = 0;
+                System.out.print(e);
+                System.out.println("number is not a integer");
+                }
+                System.out.println("I = " + I);
+        }
+
+        if (firstChar.equals("D") || firstChar.equals("d")) {
+            int SemiVal = temp.indexOf(":");
+            try {
+                D = Double.parseDouble(temp.substring(SemiVal+1));
+                System.out.println("D parsed success");
+                }
+                catch (NumberFormatException e) {
+                D = 0;
+                System.out.print(e);
+                System.out.println("number is not a integer");
+                }
+                System.out.println("D = " + D);
+        }
+
+        /* 
+        WARNING: NOT FINISHED 
+        if (firstChar.equals("F") || firstChar.equals("f") || firstChar.equals("FF")||firstChar.equals("ff")) {
+            int SemiVal = temp.indexOf(":");
+            try {
+                FF = Double.parseDouble(temp.substring(SemiVal+1));
+                System.out.println("FF parsed success");
+                }
+                catch (NumberFormatException e) {
+                FF = 0;
+                System.out.print(e);
+                System.out.println("number is not a integer");
+                }
+                System.out.println("FF = " + FF);
+        }
+        NOT FULLY FINISHED AFTER THIS LINE
+        if (firstChar.equals("iz") || firstChar.equals("IZ")) {
+            int SemiVal = temp.indexOf(":");
+            try {
+                IZone = Double.parseDouble(temp.substring(SemiVal+1));
+                System.out.println("IZ parsed success");
+                }
+                catch (NumberFormatException e) {
+                D = 0;
+                System.out.print(e);
+                System.out.println("number is not a integer");
+                }
+                System.out.println("D = " + D);
+        }
+        */
+
+        if (temp.equals("stop scanner")){
+            pidInputScanner.close();
+        }
+        else{
+            temp = pidInputScanner.nextLine();
+            System.out.println("Temp is renewed, value = " + temp);
+        }
     }
 
     double autonomousStartTime;
     double autonomousIntakePower;
 
+    // TODO: Autonomous code starts here!
     @Override
     public void autonomousInit() {
-        // motorLeftprimary.setIdleMode(IdleMode.kBrake);
+        // motorLeftprimary.setIdleMode(IdleMode.kBrake); commented out cause
+        // setIdleMode causes an error
         // motorLeftfollwer.setNeutralMode(NeutralMode.Brake);
         // motorRightprimary.setIdleMode(IdleMode.kBrake);
         // motorRightfollower.setNeutralMode(NeutralMode.Brake);
@@ -360,18 +487,36 @@ public class Robot extends TimedRobot {
 
     @Override
     public void teleopInit() {
-        // TODO: should I have a idlemode and nutralmode?????
+        // TODO: should I have a idlemode and nutralmode???? coast or brake? I DON"T
+        // WANT THE ROBOT TO MOVE???
         // motorLeftprimary.setIdleMode(IdleMode.kCoast);
-        // motorLeftfollwer.setNeutralMode(NeutralMode.Coast);
+        motorLeftprimary.setNeutralMode(NeutralMode.Coast);
+        motorLeftfollwer.setNeutralMode(NeutralMode.Coast);
         // motorRightprimary.setIdleMode(IdleMode.kCoast);
-        // motorRightfollower.setNeutralMode(NeutralMode.Coast);
-
+        motorRightprimary.setNeutralMode(NeutralMode.Coast);
+        motorRightfollower.setNeutralMode(NeutralMode.Coast);
         lastGamePiece = NOTHING;
     }
 
     @Override
     // TODO: CHANGE THE KEY BINDINGS!!!!!!!
     public void teleopPeriodic() {
+        // Code from Bing AI start
+
+        double p = Shuffleboard.getTab("PID").add("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
+        double i = Shuffleboard.getTab("PID").add("I", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
+        double d = Shuffleboard.getTab("PID").add("D", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
+        double ff = Shuffleboard.getTab("PID").add("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0); // Forward Feed
+        double izone = Shuffleboard.getTab("PID").add("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0); // IZone
+
+        armPidController.setP(p);
+        armPidController.setI(i);
+        armPidController.setD(d);
+        armPidController.setFF(ff); // Forward Feed
+        armPidController.setIZone(izone); // IZone
+
+        // Code from Bing AI end
+
         double armPower;
         if (j.getRawButton(7)) {
             // lower the arm
@@ -414,5 +559,44 @@ public class Robot extends TimedRobot {
          * from what we want. Forward returns a negative when we want it positive.
          */
         setDriveMotors(-j.getRawAxis(1), -j.getRawAxis(5));
+    }
+
+    // Sean's OG code for the arm
+    // public void setArmMotors(double input){
+    // //stop it from going too far
+
+    // //reduce input because adding the holding value could make it over 1
+    // input *= .9;
+    // //get holding output flips itself so we just add this
+    // //input += getArmHoldingOutput();
+    // if(Math.abs(getArmPositionDegrees()) >= k_SOFT_LIMIT &&
+    // !((getArmPositionDegrees() < 0) ^ (input < 0))){
+    // input = 0;
+    // }
+    // //we only set the leader cuz the follower will just do the same
+    // arm.set(input);
+    // //updating the shuffle board output
+    // // armOutput.setDouble(input);
+    // }
+
+    public double getArmPositionDegrees() {
+        double angle = (armEncoder.getPosition() * 3);// Sean just played around with this so just use 3 as of 9/19/2023
+        return angle + 0;
+    }
+
+    public double getArmHoldingOutput() {
+        // first formula is just slope-intercept as .023 is the min and .1 is the max and it should increase linearly from there
+        // FIXME: CHANGE THE FORMULA!!!!!! this is not accurate at ALL, so you must
+        // chagne it before using it... otherwise it could potentially cause unwatned/severe damages.
+        // double out = .023 + (getTelescopePosition()/TelescopeConstants.k_FULL_EXTENSION)*(.09-.023);
+        // torque exerted by gravity changes with angle, this should account for that
+        // out *= Math.sin(Math.abs(Math.toRadians(getArmPositionDegrees())));
+        // out *= (getArmPositionDegrees() > 0)?-1:1;
+        return 0.0;
+    }
+
+    public void stopArm() {
+        // this will actually output the holding value not 0
+        setArmMotor(0);
     }
 }
