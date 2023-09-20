@@ -291,6 +291,7 @@ public class Robot extends TimedRobot {
         input *= .9;
         // get holding output flips itself so we just add this
         // input += getArmHoldingOutput();
+        // FIXME: ask someone: what does ^ mean?
         if (Math.abs(getArmPositionDegrees()) >= k_SOFT_LIMIT && !((getArmPositionDegrees() < 0) ^ (input < 0))) {
             input = 0;
         }
