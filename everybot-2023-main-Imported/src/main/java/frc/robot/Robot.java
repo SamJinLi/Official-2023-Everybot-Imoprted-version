@@ -26,8 +26,12 @@ import com.ctre.phoenix.motorcontrol.can.TalonSRX;
 import com.ctre.phoenix.motorcontrol.can.TalonSRXConfiguration;
 import com.ctre.phoenix.motorcontrol.can.VictorSPX;
 import com.revrobotics.CANSparkMax;
+import com.revrobotics.RelativeEncoder;
+import com.revrobotics.SparkMaxPIDController;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
+import com.revrobotics.SparkMaxRelativeEncoder.Type;
+
 
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
@@ -45,6 +49,10 @@ public class Robot extends TimedRobot {
     private String m_autoSelected;
     private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
+
+    // arm PID encoder
+    SparkMaxPIDController armPidController;
+    RelativeEncoder armEncoder;
     /*
      * Drive motor controller instances.
      * 
@@ -188,6 +196,15 @@ public class Robot extends TimedRobot {
         arm.setInverted(true);
         arm.setIdleMode(IdleMode.kBrake);
         arm.setSmartCurrentLimit(ARM_CURRENT_LIMIT_A);
+
+        this.armPidController = arm.getPIDController();
+        this.armPidController.setP(.005);
+        this.armPidController.setI(0);
+        this.armPidController.setD(0);
+        this.armPidController.setFF(0);
+        this.armPidController.setIZone(0);
+
+        this.armEncoder = this.arm.getEncoder(Type.kHallSensor, 42);
         intake.setInverted(false);
         intake.setIdleMode(IdleMode.kBrake);
     }
@@ -218,6 +235,7 @@ public class Robot extends TimedRobot {
         // // see note above in robotInit about commenting these out one by one to set
         // // directions.
         // // motorLeftprimary.set(left);
+        
         if (Math.abs(right) > 0.20){
             motorRightprimary.set(ControlMode.PercentOutput, right);
             motorRightfollower.set(ControlMode.PercentOutput, right);
