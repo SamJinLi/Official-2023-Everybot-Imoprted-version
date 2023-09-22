@@ -67,7 +67,7 @@ public class Robot extends TimedRobot {
      * value for P,I,D after done!!
      * (Change them to static final at the same time)
      */
-    double P = 0,I = 0 ,D = 0;
+    double kP = 1,kI = 1 ,kD = 1, kFF = 0, kIZone = 0;
     SparkMaxPIDController armPidController;
     RelativeEncoder armEncoder;
     // for adujusting PID
@@ -182,8 +182,46 @@ public class Robot extends TimedRobot {
     /**
      * This method is run once when the robot is first started up.
      */
+
+     ShuffleboardTab tab = Shuffleboard.getTab("PID");
     @Override
     public void robotInit() {
+
+         // Arm (motor, encoder, and PID loop) setup Start
+        /*
+         * Set the arm and intake to brake mode to help hold position.
+         * If either one is reversed, change that here too. Arm out is defined
+         * as positive, arm in is negative.
+         */
+        arm.setInverted(true);
+        arm.setIdleMode(IdleMode.kBrake);
+        arm.setSmartCurrentLimit(ARM_CURRENT_LIMIT_A);
+
+        this.armPidController = arm.getPIDController();
+
+        this.tab.add("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
+        this.tab.add("I", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
+        this.tab.add("D", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
+        this.tab.add("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // Forward Feed
+        this.tab.add("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // IZone
+        // Bing ai changes my life? :)
+        this.armPidController.setP(kP);
+        this.armPidController.setI(kI);
+        this.armPidController.setD(kD);
+        this.armPidController.setFF(0);
+        this.armPidController.setIZone(0);
+
+        this.armEncoder = this.arm.getEncoder(Type.kHallSensor, 42);
+        // ALWAYS BURN FLASH this saves changes like idle mode or set inverted to the
+        // spark max
+        arm.burnFlash();
+        // For shuffleboard
+        // Uncomment these after learned shuffleboard API
+        // this.armAngle = Shuffleboard.getTab("ATW").add("Arm Angle", 0).getEntry();
+        // this.armOutput = Shuffleboard.getTab("ATW").add("Arm Motor Output",
+        // 0).getEntry();
+        // Arm setup end
+
         m_chooser.setDefaultOption("do nothing", kNothingAuto);
         m_chooser.addOption("cone and mobility", kConeAuto);
         m_chooser.addOption("cube and mobility", kCubeAuto);
@@ -210,41 +248,6 @@ public class Robot extends TimedRobot {
         motorLeftprimary.setInverted(InvertType.None);
         motorLeftfollwer.setInverted(InvertType.FollowMaster);
         // Drivetrain setup code end
-
-        // Arm (motor, encoder, and PID loop) setup Start
-        /*
-         * Set the arm and intake to brake mode to help hold position.
-         * If either one is reversed, change that here too. Arm out is defined
-         * as positive, arm in is negative.
-         */
-        arm.setInverted(true);
-        arm.setIdleMode(IdleMode.kBrake);
-        arm.setSmartCurrentLimit(ARM_CURRENT_LIMIT_A);
-
-        this.armPidController = arm.getPIDController();
-        ShuffleboardTab tab = Shuffleboard.getTab("PID");
-        tab.addPersistent("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
-        tab.addPersistent("I", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
-        tab.addPersistent("D", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
-        tab.addPersistent("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // Forward Feed
-        tab.addPersistent("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // IZone
-        // Bing ai changes my life? :)
-        // this.armPidController.setP(P);
-        // this.armPidController.setI(I);
-        // this.armPidController.setD(D);
-        // this.armPidController.setFF(0);
-        // this.armPidController.setIZone(0);
-
-        this.armEncoder = this.arm.getEncoder(Type.kHallSensor, 42);
-        // ALWAYS BURN FLASH this saves changes like idle mode or set inverted to the
-        // spark max
-        arm.burnFlash();
-        // For shuffleboard
-        // Uncomment these after learned shuffleboard API
-        // this.armAngle = Shuffleboard.getTab("ATW").add("Arm Angle", 0).getEntry();
-        // this.armOutput = Shuffleboard.getTab("ATW").add("Arm Motor Output",
-        // 0).getEntry();
-        // Arm setup end
 
         intake.setInverted(false);
         intake.setIdleMode(IdleMode.kBrake);
@@ -413,18 +416,24 @@ public class Robot extends TimedRobot {
     // TODO: CHANGE THE KEY BINDINGS!!!!!!!
     public void teleopPeriodic() {
         // Code from Bing AI start
+        // TODO: bing AI code
+        // double p = Shuffleboard.getTab("PID").getLayout("PID",BuiltInWidgets.kNumberSlider.toString()).getEntry().getDouble(0.0);
+        // double i = Shuffleboard.getTab("PID").getLayout("PID").getWidget("I").getEntry().getDouble(0.0);
+        // double d = Shuffleboard.getTab("PID").getLayout("PID").getWidget("D").getEntry().getDouble(0.0);
+        // double ff = Shuffleboard.getTab("PID").getLayout("PID").getWidget("FF").getEntry().getDouble(0.0); // Forward Feed
+        // double izone = Shuffleboard.getTab("PID").getLayout("PID").getWidget("IZone").getEntry().getDouble(0.0); // IZone
 
-        double p = Shuffleboard.getTab("PID").add("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
-        double i = Shuffleboard.getTab("PID").add("I", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
-        double d = Shuffleboard.getTab("PID").add("D", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
-        double ff = Shuffleboard.getTab("PID").add("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0); // Forward Feed
-        double izone = Shuffleboard.getTab("PID").add("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0); // IZone
-
-        armPidController.setP(p);
-        armPidController.setI(i);
-        armPidController.setD(d);
-        armPidController.setFF(ff); // Forward Feed
-        armPidController.setIZone(izone); // IZone
+        // kP = Shuffleboard.getTab("PID").add("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
+        // kI = Shuffleboard.getTab("PID").add("I", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
+        // kD = Shuffleboard.getTab("PID").add("D", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
+        // kFF = Shuffleboard.getTab("PID").add("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0); // Forward Feed
+        // kIZone = Shuffleboard.getTab("PID").add("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0); // IZone
+        
+        // armPidController.setP(kP);
+        // armPidController.setI(kI);
+        // armPidController.setD(kD);
+        // armPidController.setFF(kFF); // Forward Feed
+        // armPidController.setIZone(kIZone); // IZone
 
         // Code from Bing AI end
 
