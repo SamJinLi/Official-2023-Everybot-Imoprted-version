@@ -1,8 +1,10 @@
 // TODO: 
 /* 
 //  * 
+stops arm when released
  * Retracting the arm have issue -- voltage too low
  *  PID LOOP!!!
+ * 
  * 
  * binding new keys
  * 
@@ -34,12 +36,16 @@ import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.shuffleboard.BuiltInWidgets;
 import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
 import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.shuffleboard.BuiltInWidgets;
+import java.util.function.Supplier;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
+import edu.wpi.first.math.controller.PIDController;
 
 public class Robot extends TimedRobot {
     /*
@@ -67,8 +73,9 @@ public class Robot extends TimedRobot {
      * value for P,I,D after done!!
      * (Change them to static final at the same time)
      */
-    double kP = 1,kI = 1 ,kD = 1, kFF = 0, kIZone = 0;
+    double kP = 1,kI =  0,kD = 1, kFF = 0, kIZone = 0;
     SparkMaxPIDController armPidController;
+    PIDController pidController;
     RelativeEncoder armEncoder;
     // for adujusting PID
     private NetworkTableEntry pidPEntry;
@@ -76,6 +83,31 @@ public class Robot extends TimedRobot {
     private NetworkTableEntry pidDEntry;
     private NetworkTableEntry pidFFEntry; // Forward Feed
     private NetworkTableEntry pidIZoneEntry; // IZone
+
+    
+    private final XboxController m_controller = new XboxController(0);
+    private final Joystick m_js = new Joystick(1);
+    // FIXME: figure out arm position variables
+    // Arm position variables
+    private final double[] zeron = {1, 0.5, 0};//zero
+    private final double[] flatn = {-40, 0.5, -1600};//flat
+    private final double[] zerop = {0, 1, -1800};
+    private final double[] vert = {0, .5, -950};
+    //private final double[] forty5 = {-45, .5, -500};//notc
+    private final double[] pickupn = {-117, 7.7, -1300};
+    private final double[] pickupp = {118, 7.7, -700};//pickup
+    private final double[] midn = {-55, 22.7, -725};//mid cone
+    private final double[] midp = {55, 22.7, -1275};
+    private final double[] highn = {-54, 50, -1000};//high cone
+    private final double[] highp = {54, 50, -1000};
+    private final double[] stationp = {44, 11, -1450};
+    private final double[] stationn = {-45, 11, -550};
+    private final double[] hovern = {-90, .5, -160};
+    private final double[] hoverp = {90, .5, -1840};
+    private final double[] siden = {-103, .5, -160};
+    private final double[] sidep = {103, .5, -1840};
+    private final double[] autocubehigh = {-55, 33, -639};
+    private final double[] telecubehigh = {55, 33, -1000};
 
     // private final GenericEntry armAngle, armOutput; // for shuffle board
     // TODO: change all these limits and stuff! (These were straight from sean's
@@ -94,12 +126,12 @@ public class Robot extends TimedRobot {
      */
     // CANSparkMax driveLeftSpark = new CANSparkMax(1, MotorType.kBrushed);
     // CANSparkMax driveRightSpark = new CANSparkMax(2, MotorType.kBrushed);
-    TalonSRX motorLeftprimary = new TalonSRX(9);
-    TalonSRX motorLeftfollwer = new TalonSRX(0);
-    // VictorSPX driveLeftVictor = new VictorSPX(3);
-    TalonSRX motorRightprimary = new TalonSRX(8);
+    // TalonSRX motorLeftprimary = new TalonSRX(9);
+    // TalonSRX motorLeftfollwer = new TalonSRX(0);
+    // // VictorSPX driveLeftVictor = new VictorSPX(3);
+    // TalonSRX motorRightprimary = new TalonSRX(8);
 
-    VictorSPX motorRightfollower = new VictorSPX(2);
+    // VictorSPX motorRightfollower = new VictorSPX(2);
 
     /*
      * Mechanism motor controller instances.
@@ -111,8 +143,8 @@ public class Robot extends TimedRobot {
      * The arm is a NEO on Everybud.
      * The intake is a NEO 550 on Everybud.
      */
-    CANSparkMax arm = new CANSparkMax(3, MotorType.kBrushless);
-    CANSparkMax intake = new CANSparkMax(4, MotorType.kBrushless);
+    CANSparkMax arm = new CANSparkMax(1, MotorType.kBrushless);
+    // CANSparkMax intake = new CANSparkMax(4, MotorType.kBrushless);
 
     /**
      * The starter code uses the most generic joystick class.
@@ -124,7 +156,7 @@ public class Robot extends TimedRobot {
      * that you feel is more comfortable.
      */
     Joystick j = new Joystick(0);
-
+    Joystick armController = new Joystick(1);
     /*
      * Magic numbers. Use these to adjust settings.
      */
@@ -132,12 +164,12 @@ public class Robot extends TimedRobot {
     /**
      * How many amps the arm motor can use.
      */
-    static final int ARM_CURRENT_LIMIT_A = 20;
+    static final int ARM_CURRENT_LIMIT_A = 10;
 
     /**
      * Percent output to run the arm up/down at
      */
-    static final double ARM_OUTPUT_POWER = 0.15;
+    static final double ARM_OUTPUT_POWER = 0.3;
 
     /**
      * How many amps the intake can use while picking up
@@ -211,6 +243,14 @@ public class Robot extends TimedRobot {
         this.armPidController.setFF(0);
         this.armPidController.setIZone(0);
 
+        // this.positions = positions;
+        //this.telePidController = new PIDController(0.00, 0.00, 0.00);
+        // this.telePidController = new PIDController(.08, 0, 0);
+        pidController = new PIDController(0.05, 0.00, 0.00);
+        //this.armPidController = new PIDController(0.00, 0.00, 0.00);
+        //this.wristPidController = new PIDController(0.00, 0.00, 0.00);
+        // this.wristPidController = new PIDController(0.004, 0.00, 0.00);
+
         this.armEncoder = this.arm.getEncoder(Type.kHallSensor, 42);
         // ALWAYS BURN FLASH this saves changes like idle mode or set inverted to the
         // spark max
@@ -233,24 +273,24 @@ public class Robot extends TimedRobot {
         config.peakCurrentLimit = 40; // the peak current, in amps
         config.peakCurrentDuration = 1500; // the time at the peak current before the limit triggers, in ms
         config.continuousCurrentLimit = 30; // the current to maintain if the peak limit is triggered
-        motorLeftprimary.configAllSettings(config); // apply the config settings; this selects the quadrature encoder
-        motorLeftfollwer.configAllSettings(config); // apply the config settings; this selects the quadrature encoder
-        motorRightprimary.configAllSettings(config);// apply the config settings; this selects the quadrature encoder
+        // motorLeftprimary.configAllSettings(config); // apply the config settings; this selects the quadrature encoder
+        // motorLeftfollwer.configAllSettings(config); // apply the config settings; this selects the quadrature encoder
+        // motorRightprimary.configAllSettings(config);// apply the config settings; this selects the quadrature encoder
 
-        motorRightprimary.configFactoryDefault();
-        motorRightfollower.configFactoryDefault();
+        // motorRightprimary.configFactoryDefault();
+        // motorRightfollower.configFactoryDefault();
 
-        motorLeftfollwer.follow(motorLeftprimary);
-        motorRightfollower.follow(motorRightprimary);
+        // motorLeftfollwer.follow(motorLeftprimary);
+        // motorRightfollower.follow(motorRightprimary);
 
-        motorRightprimary.setInverted(InvertType.InvertMotorOutput);
-        motorRightfollower.setInverted(InvertType.InvertMotorOutput);
-        motorLeftprimary.setInverted(InvertType.None);
-        motorLeftfollwer.setInverted(InvertType.FollowMaster);
-        // Drivetrain setup code end
+        // motorRightprimary.setInverted(InvertType.InvertMotorOutput);
+        // motorRightfollower.setInverted(InvertType.InvertMotorOutput);
+        // motorLeftprimary.setInverted(InvertType.None);
+        // motorLeftfollwer.setInverted(InvertType.FollowMaster);
+        // // Drivetrain setup code end
 
-        intake.setInverted(false);
-        intake.setIdleMode(IdleMode.kBrake);
+        // intake.setInverted(false);
+        // intake.setIdleMode(IdleMode.kBrake);
         // Motor setup end
     }
 
@@ -262,20 +302,20 @@ public class Robot extends TimedRobot {
         SmartDashboard.putNumber("right track power (%)", right);
 
         // NOTE: change the dead zone?
-        if (Math.abs(right) > 0.20) {
-            motorRightprimary.set(ControlMode.PercentOutput, right);
-            motorRightfollower.set(ControlMode.PercentOutput, right);
-        } else {
-            motorRightprimary.set(ControlMode.PercentOutput, 0);
-            motorRightfollower.set(ControlMode.PercentOutput, 0);
-        }
-        if (Math.abs(left) > 0.20) {
-            motorLeftprimary.set(ControlMode.PercentOutput, left);
-            motorLeftfollwer.set(ControlMode.PercentOutput, left);
-        } else {
-            motorLeftprimary.set(ControlMode.PercentOutput, 0);
-            motorLeftfollwer.set(ControlMode.PercentOutput, 0);
-        }
+        // if (Math.abs(right) > 0.20) {
+        //     motorRightprimary.set(ControlMode.PercentOutput, right);
+        //     motorRightfollower.set(ControlMode.PercentOutput, right);
+        // } else {
+        //     motorRightprimary.set(ControlMode.PercentOutput, 0);
+        //     motorRightfollower.set(ControlMode.PercentOutput, 0);
+        // }
+        // if (Math.abs(left) > 0.20) {
+        //     motorLeftprimary.set(ControlMode.PercentOutput, left);
+        //     motorLeftfollwer.set(ControlMode.PercentOutput, left);
+        // } else {
+        //     motorLeftprimary.set(ControlMode.PercentOutput, 0);
+        //     motorLeftfollwer.set(ControlMode.PercentOutput, 0);
+        // }
     }
 
     /**
@@ -283,8 +323,17 @@ public class Robot extends TimedRobot {
      * 
      * @param input
      */
+    // theARMPID
+    public void armPIDCalculation(double[] positions, Supplier<Double> armAdjust){
+        double armSet  = positions[0] + (armAdjust.get()*-10);
+        double armOutput = pidController.calculate(getArmPositionDegrees(),armSet);
+        armOutput = (armOutput > .3)?.3:(armOutput< -.3)?-.3:armOutput;
+        setArmMotor(armOutput);
+    }
     public void setArmMotor(double input) {
         // Sean's code start
+
+       
 
         // stop it from going too far
 
@@ -305,9 +354,9 @@ public class Robot extends TimedRobot {
         // arm.set(percent);
         // SmartDashboard.putNumber("arm power (%)", percent); //TODO: change the
         // percent to whatever!
-        SmartDashboard.putNumber("arm output", input);
-        SmartDashboard.putNumber("arm motor current (amps)", arm.getOutputCurrent());
-        SmartDashboard.putNumber("arm motor temperature (C)", arm.getMotorTemperature());
+        // SmartDashboard.putNumber("arm output", input);
+        // SmartDashboard.putNumber("arm motor current (amps)", arm.getOutputCurrent());
+        // SmartDashboard.putNumber("arm motor temperature (C)", arm.getMotorTemperature());
     }
 
     /**
@@ -317,11 +366,11 @@ public class Robot extends TimedRobot {
      * @param amps    current limit
      */
     public void setIntakeMotor(double percent, int amps) {
-        intake.set(percent);
-        intake.setSmartCurrentLimit(amps);
-        SmartDashboard.putNumber("intake power (%)", percent);
-        SmartDashboard.putNumber("intake motor current (amps)", intake.getOutputCurrent());
-        SmartDashboard.putNumber("intake motor temperature (C)", intake.getMotorTemperature());
+        // intake.set(percent);
+        // intake.setSmartCurrentLimit(amps);
+        // SmartDashboard.putNumber("intake power (%)", percent);
+        // SmartDashboard.putNumber("intake motor current (amps)", intake.getOutputCurrent());
+        // SmartDashboard.putNumber("intake motor temperature (C)", intake.getMotorTemperature());
     }
 
     /**
@@ -404,12 +453,12 @@ public class Robot extends TimedRobot {
         // TODO: should I have a idlemode and nutralmode???? coast or brake? I DON"T
         // WANT THE ROBOT TO MOVE???
         // motorLeftprimary.setIdleMode(IdleMode.kCoast);
-        motorLeftprimary.setNeutralMode(NeutralMode.Coast);
-        motorLeftfollwer.setNeutralMode(NeutralMode.Coast);
-        // motorRightprimary.setIdleMode(IdleMode.kCoast);
-        motorRightprimary.setNeutralMode(NeutralMode.Coast);
-        motorRightfollower.setNeutralMode(NeutralMode.Coast);
-        lastGamePiece = NOTHING;
+        // motorLeftprimary.setNeutralMode(NeutralMode.Coast);
+        // motorLeftfollwer.setNeutralMode(NeutralMode.Coast);
+        // // motorRightprimary.setIdleMode(IdleMode.kCoast);
+        // motorRightprimary.setNeutralMode(NeutralMode.Coast);
+        // motorRightfollower.setNeutralMode(NeutralMode.Coast);
+        // lastGamePiece = NOTHING;
     }
 
     @Override
@@ -437,42 +486,173 @@ public class Robot extends TimedRobot {
 
         // Code from Bing AI end
 
-        double armPower;
-        if (j.getRawButton(7)) {
-            // lower the arm
-            armPower = -ARM_OUTPUT_POWER;
-        } else if (j.getRawButton(5)) {
-            // raise the arm
-            armPower = ARM_OUTPUT_POWER;
-        } else {
-            // do nothing and let it sit where it is
-            armPower = 0.0;
+        // double armPower;
+        // all the way down 0.6 percent
+        if(Math.abs(armController.getRawAxis(1))<0.6 && Math.abs(armController.getRawAxis(1))>0.1){
+            SmartDashboard.putNumber("Raw arm controller value", armController.getRawAxis(1));
+            arm.set((Double)armController.getRawAxis(1));
+            // System.out.println(armController.getRawAxis(1));
         }
-        setArmMotor(armPower);
+        else{
+            arm.set(0.0);
+        }
+        // arm.set(armController.getRawAxis(1));
+        // if (j.getRawButton(7)) {
+        //     // lower the arm
+        //     arm.set(-ARM_OUTPUT_POWER);
+        //     // System.out.println(armEncoder);
+        // } else if (j.getRawButton(5)) {
+        //     // raise the arm
+        //     arm.set(ARM_OUTPUT_POWER);
+        //     // System.out.println(armEncoder);
+        // } else {
+        //     // do nothing and let it sit where it is
+        //     arm.set(0.0);
+        // }
+        SmartDashboard.putNumber("Raw encoder value Spark max arm", armEncoder.getPosition());
+        // setArmMotor(armPower);
+        //zero
+        // FIXME: getRawbutton pressed here
+        // if (j.getRawButtonPressed(7)){
+        //     arm.set(-ARM_OUTPUT_POWER);
+        //     //     armPIDCalculation(
+        // //     zeron,
+        // //     () -> m_js.getThrottle()
+        // // );
+        // }
+
+
+        // new Trigger(() -> m_js2.getRawButtonPressed(7)).onTrue(new armPIDCalculation(
+        //     zeron,
+        //     () -> m_js.getThrottle()
+        // ));
+        // new Trigger(() -> m_js2.getRawButtonPressed(8)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     flatn,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js.getRawButtonPressed(7)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     zerop,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js2.getRawButtonPressed(3)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     pickupn,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // //mid cone (negative direction)
+        // new Trigger(() -> m_js2.getRawButtonPressed(4)).onTrue(
+        //     new ATWPositionCmd(atwSubsystem,
+        //      autocubehigh,
+        //      () -> m_js.getThrottle(),
+        //      () -> m_js2.getThrottle())
+        // );
+        
+        // //high cone (negative direction)
+        // new Trigger(() -> m_js2.getRawButtonPressed(5)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     highn,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js.getRawButtonPressed(3)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     pickupp,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js.getRawButtonPressed(4)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     telecubehigh,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js.getRawButtonPressed(5)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     highp,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js2.getRawButtonPressed(6)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     stationn,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js.getRawButtonPressed(6)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     stationp,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js.getRawButtonPressed(11)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     hoverp,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js.getRawButtonPressed(12)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     sidep,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js2.getRawButtonPressed(11)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     hovern,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js2.getRawButtonPressed(12)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     siden,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js2.getRawButton(10)).onTrue(new ATPositionCmd(
+        //   atwSubsystem, zeron, () -> m_js.getThrottle(),
+        //   () -> m_js2.getThrottle())
+        // );
+        // new Trigger(() -> m_js2.getRawButtonPressed(9)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     midn,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
+        // new Trigger(() -> m_js.getRawButtonPressed(9)).onTrue(new ATWPositionCmd(
+        //     atwSubsystem,
+        //     midp,
+        //     () -> m_js.getThrottle(),
+        //     () -> m_js2.getThrottle()
+        // ));
 
         double intakePower;
         int intakeAmps;
-        if (j.getRawButton(8)) {
-            // cube in or cone out
-            intakePower = INTAKE_OUTPUT_POWER;
-            intakeAmps = INTAKE_CURRENT_LIMIT_A;
-            lastGamePiece = CUBE;
-        } else if (j.getRawButton(6)) {
-            // cone in or cube out
-            intakePower = -INTAKE_OUTPUT_POWER;
-            intakeAmps = INTAKE_CURRENT_LIMIT_A;
-            lastGamePiece = CONE;
-        } else if (lastGamePiece == CUBE) {
-            intakePower = INTAKE_HOLD_POWER;
-            intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
-        } else if (lastGamePiece == CONE) {
-            intakePower = -INTAKE_HOLD_POWER;
-            intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
-        } else {
-            intakePower = 0.0;
-            intakeAmps = 0;
-        }
-        setIntakeMotor(intakePower, intakeAmps);
+        // if (j.getRawButton(8)) {
+        //     // cube in or cone out
+        //     intakePower = INTAKE_OUTPUT_POWER;
+        //     intakeAmps = INTAKE_CURRENT_LIMIT_A;
+        //     lastGamePiece = CUBE;
+        // } else if (j.getRawButton(6)) {
+        //     // cone in or cube out
+        //     intakePower = -INTAKE_OUTPUT_POWER;
+        //     intakeAmps = INTAKE_CURRENT_LIMIT_A;
+        //     lastGamePiece = CONE;
+        // } else if (lastGamePiece == CUBE) {
+        //     intakePower = INTAKE_HOLD_POWER;
+        //     intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
+        // } else if (lastGamePiece == CONE) {
+        //     intakePower = -INTAKE_HOLD_POWER;
+        //     intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
+        // } else {
+        //     intakePower = 0.0;
+        //     intakeAmps = 0;
+        // }
+        // setIntakeMotor(intakePower, intakeAmps);
 
         /*
          * Negative signs here because the values from the analog sticks are backwards
