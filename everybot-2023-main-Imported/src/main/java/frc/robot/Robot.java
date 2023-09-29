@@ -89,6 +89,7 @@ public class Robot extends TimedRobot {
     private final Joystick m_js = new Joystick(1);
     // FIXME: figure out arm position variables
     // Arm position variables
+    private final double highCone = -19.21422004;
     private final double[] zeron = {1, 0.5, 0};//zero
     private final double[] flatn = {-40, 0.5, -1600};//flat
     private final double[] zerop = {0, 1, -1800};
@@ -164,12 +165,15 @@ public class Robot extends TimedRobot {
     /**
      * How many amps the arm motor can use.
      */
-    static final int ARM_CURRENT_LIMIT_A = 10;
+    static final int ARM_CURRENT_LIMIT_A = 20;
 
     /**
      * Percent output to run the arm up/down at
      */
-    static final double ARM_OUTPUT_POWER = 0.3;
+    static final double ARM_OUTPUT_POWER = 0.7;
+    
+    //FIXME: bind the slider to chnage sensitivity 
+    static final double ARM_JOYSTICK_SENSITIVITY = 1.3;
 
     /**
      * How many amps the intake can use while picking up
@@ -324,8 +328,9 @@ public class Robot extends TimedRobot {
      * @param input
      */
     // theARMPID
-    public void armPIDCalculation(double[] positions, Supplier<Double> armAdjust){
-        double armSet  = positions[0] + (armAdjust.get()*-10);
+    public void armPIDCalculation(double positions, Supplier<Double> armAdjust){
+        double armSet  = positions + (armAdjust.get()*-10);
+
         double armOutput = pidController.calculate(getArmPositionDegrees(),armSet);
         armOutput = (armOutput > .3)?.3:(armOutput< -.3)?-.3:armOutput;
         setArmMotor(armOutput);
@@ -488,14 +493,34 @@ public class Robot extends TimedRobot {
 
         // double armPower;
         // all the way down 0.6 percent
-        if(Math.abs(armController.getRawAxis(1))<0.6 && Math.abs(armController.getRawAxis(1))>0.1){
-            SmartDashboard.putNumber("Raw arm controller value", armController.getRawAxis(1));
-            arm.set((Double)armController.getRawAxis(1));
-            // System.out.println(armController.getRawAxis(1));
+        // TODO: sensitivity?
+        // FIXME: PID START HERE
+        if (armController.getRawButtonPressed(2)){
+            
         }
-        else{
-            arm.set(0.0);
-        }
+        double error = highCone - armEncoder.getPosition();
+            double output = 0.0375*error; // 0.015 is my kp!!!!
+            arm.set(output);
+        // if(Math.abs(armController.getRawAxis(1))>0.1){
+        //     SmartDashboard.putNumber("Arm output value", (double) armController.getRawAxis(1)/ARM_JOYSTICK_SENSITIVITY);
+        //     SmartDashboard.putNumber("arm voltage in v", (Double)arm.getBusVoltage());
+        //     SmartDashboard.putNumber("Arm output current in ams", arm.getOutputCurrent());
+        //     arm.set((Double)armController.getRawAxis(1)/ARM_JOYSTICK_SENSITIVITY);
+        // }
+        // else{
+        //     arm.set(0.0);
+        // }
+        // ARM_JOYSTICK_SENSITIVITY = armController.get
+        // if(Math.abs(armController.getRawAxis(1))< ARM_OUTPUT_POWER && Math.abs(armController.getRawAxis(1))>0.1){
+        //     SmartDashboard.putNumber("Raw arm controller value", armController.getRawAxis(1));
+        //     SmartDashboard.putNumber("arm voltage in v", (Double)arm.getBusVoltage());
+        //     SmartDashboard.putNumber("Arm output current in ams", arm.getOutputCurrent());
+        //     arm.set((Double)armController.getRawAxis(1));
+        //     // System.out.println(armController.getRawAxis(1));
+        // }
+        // else{
+        //     arm.set(0.0);
+        // }
         // arm.set(armController.getRawAxis(1));
         // if (j.getRawButton(7)) {
         //     // lower the arm
