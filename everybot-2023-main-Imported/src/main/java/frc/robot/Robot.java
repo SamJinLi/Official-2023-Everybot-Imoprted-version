@@ -73,7 +73,7 @@ public class Robot extends TimedRobot {
      * value for P,I,D after done!!
      * (Change them to static final at the same time)
      */
-    double kP = 1,kI =  0,kD = 1, kFF = 0, kIZone = 0;
+    double kP = 1,kI =  0,kD = 1, kFF = 0, kIZone = 0, f = 0, errorSum = 0, lastError = 0, lastTimestamp = 0;
     SparkMaxPIDController armPidController;
     PIDController pidController;
     RelativeEncoder armEncoder;
@@ -335,6 +335,8 @@ public class Robot extends TimedRobot {
         // double error = positions - armEncoder.getPosition();
         //     double output = 0.0375*error; // 0.015 is my kp!!!!
         //     arm.set(output);
+        double dt = Timer.getFPGATimestamp() - lastTimestamp;
+
 
         double armSet  = positions + (armAdjust.get()*-10); 
         double armOutput = pidController.calculate(getArmPositionDegrees(),armSet);
@@ -470,6 +472,9 @@ public class Robot extends TimedRobot {
         // motorRightprimary.setNeutralMode(NeutralMode.Coast);
         // motorRightfollower.setNeutralMode(NeutralMode.Coast);
         // lastGamePiece = NOTHING;
+        errorSum = 0;
+        lastError = 0;
+        lastTimestamp = Timer.getFPGATimestamp();
     }
 
     @Override
@@ -501,13 +506,25 @@ public class Robot extends TimedRobot {
         // all the way down 0.6 percent
         // TODO: sensitivity?
         // FIXME: PID START HERE
-        if (armController.getRawButtonPressed(2)){
-            armPIDCalculation(highn, (Double)armEncoder.getPosition());
-        }
+        // if (armController.getRawButtonPressed(2)){
+        //     armPIDCalculation(highn, (Double)armEncoder.getPosition());
+        // }
         
-        double error = positions - armEncoder.getPosition();
+        double error = highn - armEncoder.getPosition();
+        kP = 0.0375;
+        kI = 0.03;
+        kD = 0.008;
+        // -17.57139015197754;
+        // goal -19.21422004
+        
             double output = 0.0375*error; // 0.015 is my kp!!!!
+            double dt = Timer.getFPGATimestamp() - lastTimestamp;
+            double errorRate = (error - lastError) / dt;
+            double outputSpeed = kP * error + kI * errorSum + kD * errorRate;
             arm.set(output);
+
+            lastTimestamp = Timer.getFPGATimestamp();
+            lastError = error;
             
         // if(Math.abs(armController.getRawAxis(1))>0.1){
         //     SmartDashboard.putNumber("Arm output value", (double) armController.getRawAxis(1)/ARM_JOYSTICK_SENSITIVITY);
@@ -691,7 +708,7 @@ public class Robot extends TimedRobot {
          * Negative signs here because the values from the analog sticks are backwards
          * from what we want. Forward returns a negative when we want it positive.
          */
-        setDriveMotors(-j.getRawAxis(1), -j.getRawAxis(5));
+        // setDriveM//otors(-j.getRawAxis(1), -j.getRawAxis(5));
     }
 
     // Sean's OG code for the arm
