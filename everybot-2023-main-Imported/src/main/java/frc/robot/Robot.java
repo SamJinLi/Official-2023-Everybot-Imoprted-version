@@ -90,25 +90,26 @@ public class Robot extends TimedRobot {
     // FIXME: figure out arm position variables
     // Arm position variables
     private final double highCone = -19.21422004;
-    private final double[] zeron = {1, 0.5, 0};//zero
-    private final double[] flatn = {-40, 0.5, -1600};//flat
-    private final double[] zerop = {0, 1, -1800};
-    private final double[] vert = {0, .5, -950};
-    //private final double[] forty5 = {-45, .5, -500};//notc
-    private final double[] pickupn = {-117, 7.7, -1300};
-    private final double[] pickupp = {118, 7.7, -700};//pickup
-    private final double[] midn = {-55, 22.7, -725};//mid cone
-    private final double[] midp = {55, 22.7, -1275};
-    private final double[] highn = {-54, 50, -1000};//high cone
-    private final double[] highp = {54, 50, -1000};
-    private final double[] stationp = {44, 11, -1450};
-    private final double[] stationn = {-45, 11, -550};
-    private final double[] hovern = {-90, .5, -160};
-    private final double[] hoverp = {90, .5, -1840};
-    private final double[] siden = {-103, .5, -160};
-    private final double[] sidep = {103, .5, -1840};
-    private final double[] autocubehigh = {-55, 33, -639};
-    private final double[] telecubehigh = {55, 33, -1000};
+    // private final double zeron = -19.21422004;//zero
+    // private final double flatn = ;//flat
+    // private final double zerop = ;
+    // private final double vert = ;
+    //private final double forty5 = 0;//notc
+    // TODO: get the raw encoder value done.
+    // private final double pickupn = ;
+    // private final double pickupp = ;//pickup
+    // private final double midn = ;//mid cone
+    // private final double midp = ;
+    private final double highn = -19.21422004;//high cone
+    // private final double highp = ;
+    // private final double stationp = ;
+    // private final double stationn = ;
+    // private final double hovern = ;
+    // private final double hoverp = ;
+    // private final double siden = ;
+    // private final double sidep = ;
+    // private final double autocubehigh = ;
+    // private final double telecubehigh = ;
 
     // private final GenericEntry armAngle, armOutput; // for shuffle board
     // TODO: change all these limits and stuff! (These were straight from sean's
@@ -233,13 +234,13 @@ public class Robot extends TimedRobot {
         arm.setIdleMode(IdleMode.kBrake);
         arm.setSmartCurrentLimit(ARM_CURRENT_LIMIT_A);
 
-        this.armPidController = arm.getPIDController();
+        // this.armPidController = arm.getPIDController();
 
-        this.tab.add("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
-        this.tab.add("I", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
-        this.tab.add("D", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
-        this.tab.add("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // Forward Feed
-        this.tab.add("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // IZone
+        // this.tab.add("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
+        // this.tab.add("I", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
+        // this.tab.add("D", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
+        // this.tab.add("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // Forward Feed
+        // this.tab.add("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // IZone
         // Bing ai changes my life? :)
         this.armPidController.setP(kP);
         this.armPidController.setI(kI);
@@ -306,6 +307,7 @@ public class Robot extends TimedRobot {
         SmartDashboard.putNumber("right track power (%)", right);
 
         // NOTE: change the dead zone?
+        // TODO: uncomment
         // if (Math.abs(right) > 0.20) {
         //     motorRightprimary.set(ControlMode.PercentOutput, right);
         //     motorRightfollower.set(ControlMode.PercentOutput, right);
@@ -329,8 +331,12 @@ public class Robot extends TimedRobot {
      */
     // theARMPID
     public void armPIDCalculation(double positions, Supplier<Double> armAdjust){
-        double armSet  = positions + (armAdjust.get()*-10);
 
+        // double error = positions - armEncoder.getPosition();
+        //     double output = 0.0375*error; // 0.015 is my kp!!!!
+        //     arm.set(output);
+
+        double armSet  = positions + (armAdjust.get()*-10); 
         double armOutput = pidController.calculate(getArmPositionDegrees(),armSet);
         armOutput = (armOutput > .3)?.3:(armOutput< -.3)?-.3:armOutput;
         setArmMotor(armOutput);
@@ -496,11 +502,13 @@ public class Robot extends TimedRobot {
         // TODO: sensitivity?
         // FIXME: PID START HERE
         if (armController.getRawButtonPressed(2)){
-            
+            armPIDCalculation(highn, (Double)armEncoder.getPosition());
         }
-        double error = highCone - armEncoder.getPosition();
+        
+        double error = positions - armEncoder.getPosition();
             double output = 0.0375*error; // 0.015 is my kp!!!!
             arm.set(output);
+            
         // if(Math.abs(armController.getRawAxis(1))>0.1){
         //     SmartDashboard.putNumber("Arm output value", (double) armController.getRawAxis(1)/ARM_JOYSTICK_SENSITIVITY);
         //     SmartDashboard.putNumber("arm voltage in v", (Double)arm.getBusVoltage());
