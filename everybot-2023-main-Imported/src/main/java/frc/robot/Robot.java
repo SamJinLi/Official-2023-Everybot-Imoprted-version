@@ -85,7 +85,7 @@ public class Robot extends TimedRobot {
     private NetworkTableEntry pidIZoneEntry; // IZone
 
     
-    private final XboxController m_controller = new XboxController(1);
+    // private final XboxController m_controller = new XboxController(1);
     // FIXME: figure out arm position variables
     // Arm position variables
     double lastPosition;
@@ -475,7 +475,8 @@ public class Robot extends TimedRobot {
         if(armController.getRawButtonPressed(5)){
             lastPosition = highn;
         }
-        setArmMotor(lastPosition);
+        SmartDashboard.putNumber("Last position value", lastPosition);
+        // setArmMotor(lastPosition);
         
 
         // TODO: sensitivity?
@@ -502,12 +503,14 @@ public class Robot extends TimedRobot {
 
         //     lastTimestamp = Timer.getFPGATimestamp();
         //     lastError = error;
-            
+        // NOTE: uncomment this for manuel arm access
         // if(Math.abs(armController.getRawAxis(1))>0.1){
-        //     SmartDashboard.putNumber("Arm output value", (double) armController.getRawAxis(1)/ARM_JOYSTICK_SENSITIVITY);
+        //     // CAUTION: there is no limit to the arm!!!!
+        //     // THINGS WILL BREAK IF YOU PUSH/PULL THE HANDLE ALL THE WAY DOWN
+        //     SmartDashboard.putNumber("Arm output value", (double) armController.getRawAxis(1));
         //     SmartDashboard.putNumber("arm voltage in v", (Double)arm.getBusVoltage());
         //     SmartDashboard.putNumber("Arm output current in ams", arm.getOutputCurrent());
-        //     arm.set((Double)armController.getRawAxis(1)/ARM_JOYSTICK_SENSITIVITY);
+        //     arm.set((Double)armController.getRawAxis(1));
         // }
         // else{
         //     arm.set(0.0);
