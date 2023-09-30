@@ -73,7 +73,7 @@ public class Robot extends TimedRobot {
      * value for P,I,D after done!!
      * (Change them to static final at the same time)
      */
-    double kP = 1,kI =  0,kD = 1, kFF = 0, kIZone = 0, f = 0, errorSum = 0, lastError = 0, lastTimestamp = 0;
+    double kP = 1,kI =  0,kD = 1, kFF = 0, kIZone = 0, f = 0, errorSum = 0, lastError = 0, lastTimestamp = 0, iLimit = 5;
     SparkMaxPIDController armPidController;
     PIDController pidController;
     RelativeEncoder armEncoder;
@@ -85,11 +85,10 @@ public class Robot extends TimedRobot {
     private NetworkTableEntry pidIZoneEntry; // IZone
 
     
-    private final XboxController m_controller = new XboxController(0);
-    private final Joystick m_js = new Joystick(1);
+    private final XboxController m_controller = new XboxController(1);
     // FIXME: figure out arm position variables
     // Arm position variables
-    private final double highCone = -19.21422004;
+    double lastPosition;
     // private final double zeron = -19.21422004;//zero
     // private final double flatn = ;//flat
     // private final double zerop = ;
@@ -100,7 +99,7 @@ public class Robot extends TimedRobot {
     // private final double pickupp = ;//pickup
     // private final double midn = ;//mid cone
     // private final double midp = ;
-    private final double highn = -19.21422004;//high cone
+    private final double highn = -19.2;//high cone
     // private final double highp = ;
     // private final double stationp = ;
     // private final double stationn = ;
@@ -128,12 +127,10 @@ public class Robot extends TimedRobot {
      */
     // CANSparkMax driveLeftSpark = new CANSparkMax(1, MotorType.kBrushed);
     // CANSparkMax driveRightSpark = new CANSparkMax(2, MotorType.kBrushed);
-    // TalonSRX motorLeftprimary = new TalonSRX(9);
-    // TalonSRX motorLeftfollwer = new TalonSRX(0);
-    // // VictorSPX driveLeftVictor = new VictorSPX(3);
-    // TalonSRX motorRightprimary = new TalonSRX(8);
-
-    // VictorSPX motorRightfollower = new VictorSPX(2);
+    TalonSRX motorLeftprimary = new TalonSRX(9);
+    TalonSRX motorLeftfollwer = new TalonSRX(0);
+    TalonSRX motorRightprimary = new TalonSRX(8);
+    TalonSRX motorRightfollower = new TalonSRX(3);
 
     /*
      * Mechanism motor controller instances.
@@ -146,7 +143,7 @@ public class Robot extends TimedRobot {
      * The intake is a NEO 550 on Everybud.
      */
     CANSparkMax arm = new CANSparkMax(1, MotorType.kBrushless);
-    // CANSparkMax intake = new CANSparkMax(4, MotorType.kBrushless);
+    CANSparkMax intake = new CANSparkMax(4, MotorType.kBrushless);
 
     /**
      * The starter code uses the most generic joystick class.
@@ -158,6 +155,7 @@ public class Robot extends TimedRobot {
      * that you feel is more comfortable.
      */
     Joystick j = new Joystick(0);
+    //     private final XboxController m_controller = new XboxController(0);
     Joystick armController = new Joystick(1);
     /*
      * Magic numbers. Use these to adjust settings.
@@ -173,9 +171,6 @@ public class Robot extends TimedRobot {
      */
     static final double ARM_OUTPUT_POWER = 0.7;
     
-    //FIXME: bind the slider to chnage sensitivity 
-    static final double ARM_JOYSTICK_SENSITIVITY = 1.3;
-
     /**
      * How many amps the intake can use while picking up
      */
@@ -242,16 +237,16 @@ public class Robot extends TimedRobot {
         // this.tab.add("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // Forward Feed
         // this.tab.add("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider); // IZone
         // Bing ai changes my life? :)
-        this.armPidController.setP(kP);
-        this.armPidController.setI(kI);
-        this.armPidController.setD(kD);
-        this.armPidController.setFF(0);
-        this.armPidController.setIZone(0);
+        // this.armPidController.setP(kP);
+        // this.armPidController.setI(kI);
+        // this.armPidController.setD(kD);
+        // this.armPidController.setFF(0);
+        // this.armPidController.setIZone(0);
 
         // this.positions = positions;
         //this.telePidController = new PIDController(0.00, 0.00, 0.00);
         // this.telePidController = new PIDController(.08, 0, 0);
-        pidController = new PIDController(0.05, 0.00, 0.00);
+        // pidController = new PIDController(0.05, 0.00, 0.00);
         //this.armPidController = new PIDController(0.00, 0.00, 0.00);
         //this.wristPidController = new PIDController(0.00, 0.00, 0.00);
         // this.wristPidController = new PIDController(0.004, 0.00, 0.00);
@@ -278,24 +273,25 @@ public class Robot extends TimedRobot {
         config.peakCurrentLimit = 40; // the peak current, in amps
         config.peakCurrentDuration = 1500; // the time at the peak current before the limit triggers, in ms
         config.continuousCurrentLimit = 30; // the current to maintain if the peak limit is triggered
-        // motorLeftprimary.configAllSettings(config); // apply the config settings; this selects the quadrature encoder
-        // motorLeftfollwer.configAllSettings(config); // apply the config settings; this selects the quadrature encoder
-        // motorRightprimary.configAllSettings(config);// apply the config settings; this selects the quadrature encoder
+        motorLeftprimary.configAllSettings(config); // apply the config settings; this selects the quadrature encoder
+        motorLeftfollwer.configAllSettings(config); // apply the config settings; this selects the quadrature encoder
+        motorRightprimary.configAllSettings(config);// apply the config settings; this selects the quadrature encoder
+        motorRightfollower.configAllSettings(config);
 
-        // motorRightprimary.configFactoryDefault();
-        // motorRightfollower.configFactoryDefault();
+        motorRightprimary.configFactoryDefault();
+        motorRightfollower.configFactoryDefault();
 
-        // motorLeftfollwer.follow(motorLeftprimary);
-        // motorRightfollower.follow(motorRightprimary);
+        motorLeftfollwer.follow(motorLeftprimary);
+        motorRightfollower.follow(motorRightprimary);
 
-        // motorRightprimary.setInverted(InvertType.InvertMotorOutput);
-        // motorRightfollower.setInverted(InvertType.InvertMotorOutput);
-        // motorLeftprimary.setInverted(InvertType.None);
-        // motorLeftfollwer.setInverted(InvertType.FollowMaster);
-        // // Drivetrain setup code end
+        motorRightprimary.setInverted(InvertType.InvertMotorOutput);
+        motorRightfollower.setInverted(InvertType.InvertMotorOutput);
+        motorLeftprimary.setInverted(InvertType.None);
+        motorLeftfollwer.setInverted(InvertType.FollowMaster);
+        // Drivetrain setup code end
 
-        // intake.setInverted(false);
-        // intake.setIdleMode(IdleMode.kBrake);
+        intake.setInverted(false);
+        intake.setIdleMode(IdleMode.kBrake);
         // Motor setup end
     }
 
@@ -308,20 +304,20 @@ public class Robot extends TimedRobot {
 
         // NOTE: change the dead zone?
         // TODO: uncomment
-        // if (Math.abs(right) > 0.20) {
-        //     motorRightprimary.set(ControlMode.PercentOutput, right);
-        //     motorRightfollower.set(ControlMode.PercentOutput, right);
-        // } else {
-        //     motorRightprimary.set(ControlMode.PercentOutput, 0);
-        //     motorRightfollower.set(ControlMode.PercentOutput, 0);
-        // }
-        // if (Math.abs(left) > 0.20) {
-        //     motorLeftprimary.set(ControlMode.PercentOutput, left);
-        //     motorLeftfollwer.set(ControlMode.PercentOutput, left);
-        // } else {
-        //     motorLeftprimary.set(ControlMode.PercentOutput, 0);
-        //     motorLeftfollwer.set(ControlMode.PercentOutput, 0);
-        // }
+        if (Math.abs(right) > 0.20) {
+            motorRightprimary.set(ControlMode.PercentOutput, right);
+            motorRightfollower.set(ControlMode.PercentOutput, right);
+        } else {
+            motorRightprimary.set(ControlMode.PercentOutput, 0);
+            motorRightfollower.set(ControlMode.PercentOutput, 0);
+        }
+        if (Math.abs(left) > 0.20) {
+            motorLeftprimary.set(ControlMode.PercentOutput, left);
+            motorLeftfollwer.set(ControlMode.PercentOutput, left);
+        } else {
+            motorLeftprimary.set(ControlMode.PercentOutput, 0);
+            motorLeftfollwer.set(ControlMode.PercentOutput, 0);
+        }
     }
 
     /**
@@ -330,43 +326,37 @@ public class Robot extends TimedRobot {
      * @param input
      */
     // theARMPID
-    public void armPIDCalculation(double positions, Supplier<Double> armAdjust){
+    // public void armPIDCalculation(double positions, Supplier<Double> armAdjust){
 
-        // double error = positions - armEncoder.getPosition();
-        //     double output = 0.0375*error; // 0.015 is my kp!!!!
-        //     arm.set(output);
+    //     // double error = positions - armEncoder.getPosition();
+    //     //     double output = 0.0375*error; // 0.015 is my kp!!!!
+    //     //     arm.set(output);
+    //     double dt = Timer.getFPGATimestamp() - lastTimestamp;
+
+
+    //     double armSet  = positions + (armAdjust.get()*-10); 
+    //     double armOutput = pidController.calculate(getArmPositionDegrees(),armSet);
+    //     armOutput = (armOutput > .3)?.3:(armOutput< -.3)?-.3:armOutput;
+    //     setArmMotor(armOutput);
+    // }
+    public void setArmMotor(double position) {
+        kP = 0.2;
+        kI = 0.06;
+        kD = 0.01;
+        double error = position - armEncoder.getPosition();//-22
         double dt = Timer.getFPGATimestamp() - lastTimestamp;
+        double errorRate = (error - lastError) / dt;
+        if (Math.abs(error) < iLimit) {
+            errorSum += error * dt;
+          }
+        double outputSpeed = kP * error + kI*errorSum + kD * errorRate;
+        SmartDashboard.putNumber("Raw encoder value Spark max arm", armEncoder.getPosition());
+        SmartDashboard.putNumber("error", error);
+        SmartDashboard.putNumber("errorrate", errorRate);
+        arm.set(outputSpeed);
 
-
-        double armSet  = positions + (armAdjust.get()*-10); 
-        double armOutput = pidController.calculate(getArmPositionDegrees(),armSet);
-        armOutput = (armOutput > .3)?.3:(armOutput< -.3)?-.3:armOutput;
-        setArmMotor(armOutput);
-    }
-    public void setArmMotor(double input) {
-        // Sean's code start
-
-       
-
-        // stop it from going too far
-
-        // reduce input because adding the holding value could make it over 1
-        input *= .9;
-        // get holding output flips itself so we just add this
-        // input += getArmHoldingOutput();
-        // FIXME: ask someone: what does ^ mean?
-        if (Math.abs(getArmPositionDegrees()) >= k_SOFT_LIMIT && !((getArmPositionDegrees() < 0) ^ (input < 0))) {
-            input = 0;
-        }
-        // we only set the leader cuz the follower will just do the same
-        arm.set(input);
-        // updating the shuffle board output
-        // armOutput.setDouble(input);
-
-        // Sean's code end
-        // arm.set(percent);
-        // SmartDashboard.putNumber("arm power (%)", percent); //TODO: change the
-        // percent to whatever!
+        lastTimestamp = Timer.getFPGATimestamp();
+        lastError = error;
         // SmartDashboard.putNumber("arm output", input);
         // SmartDashboard.putNumber("arm motor current (amps)", arm.getOutputCurrent());
         // SmartDashboard.putNumber("arm motor temperature (C)", arm.getMotorTemperature());
@@ -379,11 +369,11 @@ public class Robot extends TimedRobot {
      * @param amps    current limit
      */
     public void setIntakeMotor(double percent, int amps) {
-        // intake.set(percent);
-        // intake.setSmartCurrentLimit(amps);
-        // SmartDashboard.putNumber("intake power (%)", percent);
-        // SmartDashboard.putNumber("intake motor current (amps)", intake.getOutputCurrent());
-        // SmartDashboard.putNumber("intake motor temperature (C)", intake.getMotorTemperature());
+        intake.set(percent);
+        intake.setSmartCurrentLimit(amps);
+        SmartDashboard.putNumber("intake power (%)", percent);
+        SmartDashboard.putNumber("intake motor current (amps)", intake.getOutputCurrent());
+        SmartDashboard.putNumber("intake motor temperature (C)", intake.getMotorTemperature());
     }
 
     /**
@@ -475,56 +465,43 @@ public class Robot extends TimedRobot {
         errorSum = 0;
         lastError = 0;
         lastTimestamp = Timer.getFPGATimestamp();
+        lastPosition = 0.0;
     }
 
     @Override
     // TODO: CHANGE THE KEY BINDINGS!!!!!!!
     public void teleopPeriodic() {
-        // Code from Bing AI start
-        // TODO: bing AI code
-        // double p = Shuffleboard.getTab("PID").getLayout("PID",BuiltInWidgets.kNumberSlider.toString()).getEntry().getDouble(0.0);
-        // double i = Shuffleboard.getTab("PID").getLayout("PID").getWidget("I").getEntry().getDouble(0.0);
-        // double d = Shuffleboard.getTab("PID").getLayout("PID").getWidget("D").getEntry().getDouble(0.0);
-        // double ff = Shuffleboard.getTab("PID").getLayout("PID").getWidget("FF").getEntry().getDouble(0.0); // Forward Feed
-        // double izone = Shuffleboard.getTab("PID").getLayout("PID").getWidget("IZone").getEntry().getDouble(0.0); // IZone
-
-        // kP = Shuffleboard.getTab("PID").add("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
-        // kI = Shuffleboard.getTab("PID").add("I", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
-        // kD = Shuffleboard.getTab("PID").add("D", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0);
-        // kFF = Shuffleboard.getTab("PID").add("FF", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0); // Forward Feed
-        // kIZone = Shuffleboard.getTab("PID").add("IZone", 0.0).withWidget(BuiltInWidgets.kNumberSlider).getEntry().getDouble(0.0); // IZone
+        // FIXME: get the arm value!!!!
+        if(armController.getRawButtonPressed(5)){
+            lastPosition = highn;
+        }
+        setArmMotor(lastPosition);
         
-        // armPidController.setP(kP);
-        // armPidController.setI(kI);
-        // armPidController.setD(kD);
-        // armPidController.setFF(kFF); // Forward Feed
-        // armPidController.setIZone(kIZone); // IZone
 
-        // Code from Bing AI end
-
-        // double armPower;
-        // all the way down 0.6 percent
         // TODO: sensitivity?
         // FIXME: PID START HERE
         // if (armController.getRawButtonPressed(2)){
         //     armPIDCalculation(highn, (Double)armEncoder.getPosition());
         // }
         
-        double error = highn - armEncoder.getPosition();
-        kP = 0.0375;
-        kI = 0.03;
-        kD = 0.008;
-        // -17.57139015197754;
-        // goal -19.21422004
+        // double error = highn - armEncoder.getPosition();//-22
+        // kP = 0.0375;
+        // kI = 0.03;
+        // kD = 0.008;
+        // // -17.57139015197754;
+        // // goal -19.21422004
         
-            double output = 0.0375*error; // 0.015 is my kp!!!!
-            double dt = Timer.getFPGATimestamp() - lastTimestamp;
-            double errorRate = (error - lastError) / dt;
-            double outputSpeed = kP * error + kI * errorSum + kD * errorRate;
-            arm.set(output);
+        //     // double output = 0.0375*error; // 0.015 is my kp!!!!
+        //     double dt = Timer.getFPGATimestamp() - lastTimestamp;
+        //     double errorRate = (error - lastError) / dt;
+        //     double outputSpeed = kP * error + kD * errorRate;
+        //     SmartDashboard.putNumber("Raw encoder value Spark max arm", armEncoder.getPosition());
+        //     SmartDashboard.putNumber("error", error);
+        //     SmartDashboard.putNumber("errorrate", errorRate);
+        //     arm.set(outputSpeed);
 
-            lastTimestamp = Timer.getFPGATimestamp();
-            lastError = error;
+        //     lastTimestamp = Timer.getFPGATimestamp();
+        //     lastError = error;
             
         // if(Math.abs(armController.getRawAxis(1))>0.1){
         //     SmartDashboard.putNumber("Arm output value", (double) armController.getRawAxis(1)/ARM_JOYSTICK_SENSITIVITY);
@@ -535,180 +512,38 @@ public class Robot extends TimedRobot {
         // else{
         //     arm.set(0.0);
         // }
-        // ARM_JOYSTICK_SENSITIVITY = armController.get
-        // if(Math.abs(armController.getRawAxis(1))< ARM_OUTPUT_POWER && Math.abs(armController.getRawAxis(1))>0.1){
-        //     SmartDashboard.putNumber("Raw arm controller value", armController.getRawAxis(1));
-        //     SmartDashboard.putNumber("arm voltage in v", (Double)arm.getBusVoltage());
-        //     SmartDashboard.putNumber("Arm output current in ams", arm.getOutputCurrent());
-        //     arm.set((Double)armController.getRawAxis(1));
-        //     // System.out.println(armController.getRawAxis(1));
-        // }
-        // else{
-        //     arm.set(0.0);
-        // }
-        // arm.set(armController.getRawAxis(1));
-        // if (j.getRawButton(7)) {
-        //     // lower the arm
-        //     arm.set(-ARM_OUTPUT_POWER);
-        //     // System.out.println(armEncoder);
-        // } else if (j.getRawButton(5)) {
-        //     // raise the arm
-        //     arm.set(ARM_OUTPUT_POWER);
-        //     // System.out.println(armEncoder);
-        // } else {
-        //     // do nothing and let it sit where it is
-        //     arm.set(0.0);
-        // }
-        SmartDashboard.putNumber("Raw encoder value Spark max arm", armEncoder.getPosition());
-        // setArmMotor(armPower);
-        //zero
-        // FIXME: getRawbutton pressed here
-        // if (j.getRawButtonPressed(7)){
-        //     arm.set(-ARM_OUTPUT_POWER);
-        //     //     armPIDCalculation(
-        // //     zeron,
-        // //     () -> m_js.getThrottle()
-        // // );
-        // }
-
-
-        // new Trigger(() -> m_js2.getRawButtonPressed(7)).onTrue(new armPIDCalculation(
-        //     zeron,
-        //     () -> m_js.getThrottle()
-        // ));
-        // new Trigger(() -> m_js2.getRawButtonPressed(8)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     flatn,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js.getRawButtonPressed(7)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     zerop,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js2.getRawButtonPressed(3)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     pickupn,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // //mid cone (negative direction)
-        // new Trigger(() -> m_js2.getRawButtonPressed(4)).onTrue(
-        //     new ATWPositionCmd(atwSubsystem,
-        //      autocubehigh,
-        //      () -> m_js.getThrottle(),
-        //      () -> m_js2.getThrottle())
-        // );
         
-        // //high cone (negative direction)
-        // new Trigger(() -> m_js2.getRawButtonPressed(5)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     highn,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js.getRawButtonPressed(3)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     pickupp,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js.getRawButtonPressed(4)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     telecubehigh,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js.getRawButtonPressed(5)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     highp,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js2.getRawButtonPressed(6)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     stationn,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js.getRawButtonPressed(6)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     stationp,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js.getRawButtonPressed(11)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     hoverp,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js.getRawButtonPressed(12)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     sidep,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js2.getRawButtonPressed(11)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     hovern,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js2.getRawButtonPressed(12)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     siden,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js2.getRawButton(10)).onTrue(new ATPositionCmd(
-        //   atwSubsystem, zeron, () -> m_js.getThrottle(),
-        //   () -> m_js2.getThrottle())
-        // );
-        // new Trigger(() -> m_js2.getRawButtonPressed(9)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     midn,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
-        // new Trigger(() -> m_js.getRawButtonPressed(9)).onTrue(new ATWPositionCmd(
-        //     atwSubsystem,
-        //     midp,
-        //     () -> m_js.getThrottle(),
-        //     () -> m_js2.getThrottle()
-        // ));
 
-        double intakePower;
-        int intakeAmps;
-        // if (j.getRawButton(8)) {
-        //     // cube in or cone out
-        //     intakePower = INTAKE_OUTPUT_POWER;
-        //     intakeAmps = INTAKE_CURRENT_LIMIT_A;
-        //     lastGamePiece = CUBE;
-        // } else if (j.getRawButton(6)) {
-        //     // cone in or cube out
-        //     intakePower = -INTAKE_OUTPUT_POWER;
-        //     intakeAmps = INTAKE_CURRENT_LIMIT_A;
-        //     lastGamePiece = CONE;
-        // } else if (lastGamePiece == CUBE) {
-        //     intakePower = INTAKE_HOLD_POWER;
-        //     intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
-        // } else if (lastGamePiece == CONE) {
-        //     intakePower = -INTAKE_HOLD_POWER;
-        //     intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
-        // } else {
-        //     intakePower = 0.0;
-        //     intakeAmps = 0;
-        // }
-        // setIntakeMotor(intakePower, intakeAmps);
+        double intakePower = 0.0;
+        int intakeAmps = 0;
+        if (j.getRawButton(8)) {
+            // cube in or cone out
+            intakePower = INTAKE_OUTPUT_POWER;
+            intakeAmps = INTAKE_CURRENT_LIMIT_A;
+            lastGamePiece = CUBE;
+        } else if (j.getRawButton(6)) {
+            // cone in or cube out
+            intakePower = -INTAKE_OUTPUT_POWER;
+            intakeAmps = INTAKE_CURRENT_LIMIT_A;
+            lastGamePiece = CONE;
+        } else if (lastGamePiece == CUBE) {
+            intakePower = INTAKE_HOLD_POWER;
+            intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
+        } else if (lastGamePiece == CONE) {
+            intakePower = -INTAKE_HOLD_POWER;
+            intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
+        } else {
+            intakePower = 0.0;
+            intakeAmps = 0;
+        }
+        // TODO: change this to intake power and intake amps    
+        setIntakeMotor(0.0, 0);
 
         /*
          * Negative signs here because the values from the analog sticks are backwards
          * from what we want. Forward returns a negative when we want it positive.
          */
-        // setDriveM//otors(-j.getRawAxis(1), -j.getRawAxis(5));
+        setDriveMotors(-j.getRawAxis(1), -j.getRawAxis(5));
     }
 
     // Sean's OG code for the arm
