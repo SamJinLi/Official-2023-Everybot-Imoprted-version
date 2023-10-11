@@ -1,17 +1,11 @@
-// TODO: 
+// TODO:
+// hardware fix overshoot
+// drivetrain divide by 3 or full power? 
 /* 
 //  * 
-stops arm when released
- * Retracting the arm have issue -- voltage too low
- *  PID LOOP!!!
- * 
- * 
- * binding new keys
- * 
- * LEARN:
- * Suffle board API 
- *  EVERYTHING AUTONOMOUS
- * 
+
+fix pid loop (overdosed when going back, what can I do with it?)
+
 */
 // Copyright (c) FIRST and other WPILib contributors.
 // Open Source Software; you can modify and/or share it under the terms of
@@ -73,7 +67,7 @@ public class Robot extends TimedRobot {
      * value for P,I,D after done!!
      * (Change them to static final at the same time)
      */
-    double kP = 1,kI =  0,kD = 1, kFF = 0, kIZone = 0, f = 0, errorSum = 0, lastError = 0, lastTimestamp = 0, iLimit = 5;
+    double kP = 1,kI =  0,kD = 1, kFF = 0, kIZone = 0, f = 0, errorSum = 0, lastError = 0, lastTimestamp = 0, iLimit = 6, errorRate;
     SparkMaxPIDController armPidController;
     PIDController pidController;
     RelativeEncoder armEncoder;
@@ -89,7 +83,9 @@ public class Robot extends TimedRobot {
     // FIXME: figure out arm position variables
     // Arm position variables
     double lastPosition;
-    // private final double zeron = -19.21422004;//zero
+    private final double topShelfCube = -20;
+    private final double topShelfCone = -25;
+    
     // private final double flatn = ;//flat
     // private final double zerop = ;
     // private final double vert = ;
@@ -98,8 +94,16 @@ public class Robot extends TimedRobot {
     // private final double pickupn = ;
     // private final double pickupp = ;//pickup
     // private final double midn = ;//mid cone
-    // private final double midp = ;
-    private final double highn = -19.2;//high cone
+    // -16.2
+    private final double highCube = -30.31;
+    private final double midCube = -20.31;
+    // +/-.4
+    private final double startingPosition = 16;
+   
+    private final double zeron = 0 ; // normal flat value
+    private final double highn = -19.7;//high cone
+    private final double midCone = -7.16;
+    // private final double low = 
     // private final double highp = ;
     // private final double stationp = ;
     // private final double stationn = ;
@@ -143,7 +147,7 @@ public class Robot extends TimedRobot {
      * The intake is a NEO 550 on Everybud.
      */
     CANSparkMax arm = new CANSparkMax(1, MotorType.kBrushless);
-    CANSparkMax intake = new CANSparkMax(4, MotorType.kBrushless);
+    CANSparkMax intake = new CANSparkMax(6, MotorType.kBrushless);
 
     /**
      * The starter code uses the most generic joystick class.
@@ -157,6 +161,9 @@ public class Robot extends TimedRobot {
     Joystick j = new Joystick(0);
     //     private final XboxController m_controller = new XboxController(0);
     Joystick armController = new Joystick(1);
+
+    static int GO_FORWARD_TIME = 15;
+
     /*
      * Magic numbers. Use these to adjust settings.
      */
@@ -164,12 +171,12 @@ public class Robot extends TimedRobot {
     /**
      * How many amps the arm motor can use.
      */
-    static final int ARM_CURRENT_LIMIT_A = 20;
+    static final int ARM_CURRENT_LIMIT_A = 25;
 
     /**
      * Percent output to run the arm up/down at
      */
-    static final double ARM_OUTPUT_POWER = 0.7;
+    // static final double ARM_OUTPUT_POWER = 1.0;
     
     /**
      * How many amps the intake can use while picking up
@@ -184,7 +191,7 @@ public class Robot extends TimedRobot {
     /**
      * Percent output for intaking
      */
-    static final double INTAKE_OUTPUT_POWER = 15;
+    static final double INTAKE_OUTPUT_POWER = 0.9;// decimal form! not in percent!
 
     /**
      * Percent output for holding
@@ -218,17 +225,17 @@ public class Robot extends TimedRobot {
      ShuffleboardTab tab = Shuffleboard.getTab("PID");
     @Override
     public void robotInit() {
-
-         // Arm (motor, encoder, and PID loop) setup Start
+        // Arm (motor, encoder, and PID loop) setup Start
         /*
          * Set the arm and intake to brake mode to help hold position.
          * If either one is reversed, change that here too. Arm out is defined
          * as positive, arm in is negative.
          */
+        arm.restoreFactoryDefaults();
         arm.setInverted(true);
         arm.setIdleMode(IdleMode.kBrake);
         arm.setSmartCurrentLimit(ARM_CURRENT_LIMIT_A);
-
+        arm.burnFlash();
         // this.armPidController = arm.getPIDController();
 
         // this.tab.add("P", 0.0).withWidget(BuiltInWidgets.kNumberSlider);
@@ -289,9 +296,11 @@ public class Robot extends TimedRobot {
         motorLeftprimary.setInverted(InvertType.None);
         motorLeftfollwer.setInverted(InvertType.FollowMaster);
         // Drivetrain setup code end
-
+        intake.restoreFactoryDefaults();
+        intake.setSmartCurrentLimit(INTAKE_CURRENT_LIMIT_A);
         intake.setInverted(false);
         intake.setIdleMode(IdleMode.kBrake);
+        intake.burnFlash();
         // Motor setup end
     }
 
@@ -299,21 +308,24 @@ public class Robot extends TimedRobot {
      * Tank drive
      */
     public void setDriveMotors(double left, double right) {
-        SmartDashboard.putNumber("left track power (%)", left);
-        SmartDashboard.putNumber("right track power (%)", right);
+        //Adjust this if it's still too sensitive/not sensitive enough      
 
         // NOTE: change the dead zone?
-        // TODO: uncomment
+        // TODO: change the /3 if needed
         if (Math.abs(right) > 0.20) {
+            right = right / 1.25;
             motorRightprimary.set(ControlMode.PercentOutput, right);
             motorRightfollower.set(ControlMode.PercentOutput, right);
+            SmartDashboard.putNumber("right track power (%)", right);
         } else {
             motorRightprimary.set(ControlMode.PercentOutput, 0);
             motorRightfollower.set(ControlMode.PercentOutput, 0);
         }
         if (Math.abs(left) > 0.20) {
+            left = left/1.25; 
             motorLeftprimary.set(ControlMode.PercentOutput, left);
             motorLeftfollwer.set(ControlMode.PercentOutput, left);
+            SmartDashboard.putNumber("left track power (%)", left);
         } else {
             motorLeftprimary.set(ControlMode.PercentOutput, 0);
             motorLeftfollwer.set(ControlMode.PercentOutput, 0);
@@ -325,7 +337,7 @@ public class Robot extends TimedRobot {
      * 
      * @param input
      */
-    // theARMPID
+    
     // public void armPIDCalculation(double positions, Supplier<Double> armAdjust){
 
     //     // double error = positions - armEncoder.getPosition();
@@ -339,22 +351,32 @@ public class Robot extends TimedRobot {
     //     armOutput = (armOutput > .3)?.3:(armOutput< -.3)?-.3:armOutput;
     //     setArmMotor(armOutput);
     // }
+    // theARMPID
+    // -19.2
     public void setArmMotor(double position) {
-        kP = 0.2;
-        kI = 0.06;
-        kD = 0.01;
+        kP = 0.05;
+        kI = 0.2; // was 0.2
+        iLimit = 8;
+        // kI = 0;
+        kD = 0.009;
         double error = position - armEncoder.getPosition();//-22
         double dt = Timer.getFPGATimestamp() - lastTimestamp;
-        double errorRate = (error - lastError) / dt;
+        errorRate = (error - lastError) / dt;
+
+        // SmartDashboard.putNumber("Raw encoder value Spark max arm", armEncoder.getPosition());
+        SmartDashboard.putNumber("error", error);
+        SmartDashboard.putNumber("errorrate", errorRate);
+        
         if (Math.abs(error) < iLimit) {
             errorSum += error * dt;
           }
         double outputSpeed = kP * error + kI*errorSum + kD * errorRate;
-        SmartDashboard.putNumber("Raw encoder value Spark max arm", armEncoder.getPosition());
-        SmartDashboard.putNumber("error", error);
-        SmartDashboard.putNumber("errorrate", errorRate);
+        if (position == zeron){
+            outputSpeed*=0.25;
+        }
         arm.set(outputSpeed);
 
+        
         lastTimestamp = Timer.getFPGATimestamp();
         lastError = error;
         // SmartDashboard.putNumber("arm output", input);
@@ -368,9 +390,8 @@ public class Robot extends TimedRobot {
      * @param percent desired speed
      * @param amps    current limit
      */
-    public void setIntakeMotor(double percent, int amps) {
+    public void setIntakeMotor(double percent) {
         intake.set(percent);
-        intake.setSmartCurrentLimit(amps);
         SmartDashboard.putNumber("intake power (%)", percent);
         SmartDashboard.putNumber("intake motor current (amps)", intake.getOutputCurrent());
         SmartDashboard.putNumber("intake motor temperature (C)", intake.getMotorTemperature());
@@ -397,50 +418,68 @@ public class Robot extends TimedRobot {
         // motorRightprimary.setIdleMode(IdleMode.kBrake);
         // motorRightfollower.setNeutralMode(NeutralMode.Brake);
 
-        m_autoSelected = m_chooser.getSelected();
-        System.out.println("Auto selected: " + m_autoSelected);
+        // m_autoSelected = m_chooser.getSelected();
+        // System.out.println("Auto selected: " + m_autoSelected);
 
-        if (m_autoSelected == kConeAuto) {
-            autonomousIntakePower = INTAKE_OUTPUT_POWER;
-        } else if (m_autoSelected == kCubeAuto) {
-            autonomousIntakePower = -INTAKE_OUTPUT_POWER;
-        }
+        // if (m_autoSelected == kConeAuto) {
+        //     autonomousIntakePower = INTAKE_OUTPUT_POWER;
+        // } else if (m_autoSelected == kCubeAuto) {
+        //     autonomousIntakePower = -INTAKE_OUTPUT_POWER;
+        // }
+
+        errorSum = 0;
+        lastError = 0;
+        lastTimestamp = Timer.getFPGATimestamp();
+        lastPosition = 0;
 
         autonomousStartTime = Timer.getFPGATimestamp();
     }
 
     @Override
     public void autonomousPeriodic() {
-        if (m_autoSelected == kNothingAuto) {
-            setArmMotor(0.0);
-            setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-            setDriveMotors(0.0, 0.0);
-            return;
-        }
-
+        // if (m_autoSelected == kNothingAuto) {
+        //     setArmMotor(0.0);
+        //     setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+        //     setDriveMotors(0.0, 0.0);
+        //     return;
+        // }
+            // setArmMotor(startingPosition);
         double timeElapsed = Timer.getFPGATimestamp() - autonomousStartTime;
+        double leftForwardFeed = 0 ;
+        double rightForwardFeed = 0 ;
+         GO_FORWARD_TIME = 10 ;//seconds goes here
+        if (timeElapsed < GO_FORWARD_TIME){
+                setDriveMotors(leftForwardFeed, rightForwardFeed);
+            }
+            else{
+                setDriveMotors(0.0, 0.0);
+            }
 
-        if (timeElapsed < ARM_EXTEND_TIME_S) {
-            setArmMotor(ARM_OUTPUT_POWER);
-            setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-            setDriveMotors(0.0, 0.0);
-        } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S) {
-            setArmMotor(0.0);
-            setIntakeMotor(autonomousIntakePower, INTAKE_CURRENT_LIMIT_A);
-            setDriveMotors(0.0, 0.0);
-        } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
-            setArmMotor(-ARM_OUTPUT_POWER);
-            setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-            setDriveMotors(0.0, 0.0);
-        } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
-            setArmMotor(0.0);
-            setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-            setDriveMotors(AUTO_DRIVE_SPEED, 0.0);
-        } else {
-            setArmMotor(0.0);
-            setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
-            setDriveMotors(0.0, 0.0);
-        }
+
+
+
+
+        // if (timeElapsed < ARM_EXTEND_TIME_S) {
+        //     setArmMotor(ARM_OUTPUT_POWER);
+        //     setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+        //     setDriveMotors(0.0, 0.0);
+        // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S) {
+        //     setArmMotor(0.0);
+        //     setIntakeMotor(autonomousIntakePower, INTAKE_CURRENT_LIMIT_A);
+        //     setDriveMotors(0.0, 0.0);
+        // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S) {
+        //     setArmMotor(-ARM_OUTPUT_POWER);
+        //     setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+        //     setDriveMotors(0.0, 0.0);
+        // } else if (timeElapsed < ARM_EXTEND_TIME_S + AUTO_THROW_TIME_S + ARM_EXTEND_TIME_S + AUTO_DRIVE_TIME) {
+        //     setArmMotor(0.0);
+        //     setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+        //     setDriveMotors(AUTO_DRIVE_SPEED, 0.0);
+        // } else {
+        //     setArmMotor(0.0);
+        //     setIntakeMotor(0.0, INTAKE_CURRENT_LIMIT_A);
+        //     setDriveMotors(0.0, 0.0);
+        // }
     }
 
     /**
@@ -465,19 +504,86 @@ public class Robot extends TimedRobot {
         errorSum = 0;
         lastError = 0;
         lastTimestamp = Timer.getFPGATimestamp();
-        lastPosition = 0.0;
+        lastPosition = zeron;
     }
 
     @Override
     // TODO: CHANGE THE KEY BINDINGS!!!!!!!
     public void teleopPeriodic() {
+        SmartDashboard.putNumber("Raw encoder value Spark max arm", armEncoder.getPosition());
         // FIXME: get the arm value!!!!
+        // TODO: uncommentthis
+        // 5 is high cone
+        // 3 is mid cone
+        // 6 is high cube
+        // 4 low cube
+        // 1 intake in
+        // 2 intake out
+        // 11 resting position (zero right no)
+        // 12 absolute zero / strating position
+        // 9 top shelf cube
+        //10 topshelf cone
+
+
+
+
         if(armController.getRawButtonPressed(5)){
             lastPosition = highn;
+            errorSum = 0;
+            errorSum = 0;
+            lastError = 0;
+            lastTimestamp = Timer.getFPGATimestamp();
+            
+        }
+        if(armController.getRawButtonPressed(3)){
+            lastPosition = midCone;
+            errorSum = 0;
+            lastError = 0;
+            lastTimestamp = Timer.getFPGATimestamp();
+        }
+        if(armController.getRawButtonPressed(6)){
+            lastPosition = highCube;
+            errorSum = 0;
+            lastError = 0;
+            lastTimestamp = Timer.getFPGATimestamp();
+        }
+        if(armController.getRawButtonPressed(4)){
+            lastPosition = midCube;
+            errorSum = 0;
+            lastError = 0;
+            lastTimestamp = Timer.getFPGATimestamp();
+        }
+        if(armController.getRawButtonPressed(11)){
+            lastPosition = zeron;
+            errorSum = 0;
+            lastError = 0;
+            lastTimestamp = Timer.getFPGATimestamp();
+        }
+        if(armController.getRawButtonPressed(12)){
+            lastPosition = startingPosition;
+            errorSum = 0;
+            lastError = 0;
+            lastTimestamp = Timer.getFPGATimestamp();
+        }
+        if(armController.getRawButtonPressed(10)){
+            lastPosition = topShelfCube;
+            errorSum = 0;
+            lastError = 0;
+            lastTimestamp = Timer.getFPGATimestamp();
+        }
+        if(armController.getRawButtonPressed(9)){
+            lastPosition = topShelfCone;
+            errorSum = 0;
+            lastError = 0;
+            lastTimestamp = Timer.getFPGATimestamp();
         }
         SmartDashboard.putNumber("Last position value", lastPosition);
         // setArmMotor(lastPosition);
         
+
+
+
+
 
         // TODO: sensitivity?
         // FIXME: PID START HERE
@@ -496,51 +602,52 @@ public class Robot extends TimedRobot {
         //     double dt = Timer.getFPGATimestamp() - lastTimestamp;
         //     double errorRate = (error - lastError) / dt;
         //     double outputSpeed = kP * error + kD * errorRate;
-        //     SmartDashboard.putNumber("Raw encoder value Spark max arm", armEncoder.getPosition());
-        //     SmartDashboard.putNumber("error", error);
-        //     SmartDashboard.putNumber("errorrate", errorRate);
+            // SmartDashboard.putNumber("error", error);
+            // SmartDashboard.putNumber("errorrate", errorRate);
         //     arm.set(outputSpeed);
 
         //     lastTimestamp = Timer.getFPGATimestamp();
         //     lastError = error;
         // NOTE: uncomment this for manuel arm access
-        // if(Math.abs(armController.getRawAxis(1))>0.1){
-        //     // CAUTION: there is no limit to the arm!!!!
-        //     // THINGS WILL BREAK IF YOU PUSH/PULL THE HANDLE ALL THE WAY DOWN
-        //     SmartDashboard.putNumber("Arm output value", (double) armController.getRawAxis(1));
-        //     SmartDashboard.putNumber("arm voltage in v", (Double)arm.getBusVoltage());
-        //     SmartDashboard.putNumber("Arm output current in ams", arm.getOutputCurrent());
-        //     arm.set((Double)armController.getRawAxis(1));
-        // }
-        // else{
-        //     arm.set(0.0);
-        // }
+
+
+
+
+        if(Math.abs(armController.getRawAxis(1))>0.1){
+            // CAUTION: there is no limit to the arm!!!!
+            // THINGS WILL BREAK IF YOU PUSH/PULL THE HANDLE ALL THE WAY DOWN
+            SmartDashboard.putNumber("Arm output value", (double) armController.getRawAxis(1));
+            SmartDashboard.putNumber("arm voltage in v", (Double)arm.getBusVoltage());
+            SmartDashboard.putNumber("Arm output current in ams", arm.getOutputCurrent());
+            arm.set((Double)armController.getRawAxis(1));
+        }
+        else{
+            arm.set(0.0);
+        }
         
 
+
+
+
         double intakePower = 0.0;
-        int intakeAmps = 0;
-        if (j.getRawButton(8)) {
+        if (armController.getRawButton(1)) {
             // cube in or cone out
             intakePower = INTAKE_OUTPUT_POWER;
-            intakeAmps = INTAKE_CURRENT_LIMIT_A;
             lastGamePiece = CUBE;
-        } else if (j.getRawButton(6)) {
+        } else if (armController.getRawButton(2)) {
             // cone in or cube out
             intakePower = -INTAKE_OUTPUT_POWER;
-            intakeAmps = INTAKE_CURRENT_LIMIT_A;
             lastGamePiece = CONE;
         } else if (lastGamePiece == CUBE) {
             intakePower = INTAKE_HOLD_POWER;
-            intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
         } else if (lastGamePiece == CONE) {
             intakePower = -INTAKE_HOLD_POWER;
-            intakeAmps = INTAKE_HOLD_CURRENT_LIMIT_A;
         } else {
             intakePower = 0.0;
-            intakeAmps = 0;
+            
         }
         // TODO: change this to intake power and intake amps    
-        setIntakeMotor(0.0, 0);
+        setIntakeMotor(intakePower);
 
         /*
          * Negative signs here because the values from the analog sticks are backwards
